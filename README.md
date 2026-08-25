@@ -1,4 +1,4 @@
-# Claude Code Best (CCB)
+# Claude Code Zanii (CCZ)
 
 [![GitHub Stars](https://img.shields.io/github/stars/claude-code-best/claude-code?style=flat-square&logo=github&color=yellow)](https://github.com/claude-code-best/claude-code/stargazers)
 [![GitHub Contributors](https://img.shields.io/github/contributors/claude-code-best/claude-code?style=flat-square&color=green)](https://github.com/claude-code-best/claude-code/graphs/contributors)
@@ -10,15 +10,15 @@
 
 A fully restored, open build of Anthropic's [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI — every core loop rebuilt in TypeScript on Bun, with the telemetry and lock-ins removed and a few things added that upstream doesn't have. Compatible with existing `CLAUDE.md` / `.claude` setups out of the box.
 
-中文文档：[ccb.agent-aura.top](https://ccb.agent-aura.top/) · [社区项目留影](./Friends.md)
+中文文档：[CCZ.agent-aura.top](https://CCZ.agent-aura.top/) · [社区项目留影](./Friends.md)
 
-![CCB terminal session showing a verified Zanii proof](docs/assets/zanii-proof-terminal.svg)
+![Claude Code Zanii terminal session showing a verified Zanii proof](docs/assets/zanii-proof-terminal.svg)
 
 ## Proof of action
 
-Every session can leave a verifiable trail. CCB integrates [Zanii](https://ledger.zanii.agency), a transparency log for AI agents: each tool call becomes a signed, hash-chained receipt in an append-only Merkle log that is periodically anchored on-chain. Only a **hash** of each action is stored — your code and file contents never leave the machine.
+Every session can leave a verifiable trail. Claude Code Zanii integrates [Zanii](https://ledger.zanii.agency), a transparency log for AI agents: each tool call becomes a signed, hash-chained receipt in an append-only Merkle log that is periodically anchored on-chain. Only a **hash** of each action is stored — your code and file contents never leave the machine.
 
-There is no signup form to fill. On first launch CCB derives an identity from your hardware (SMBIOS UUID, so it survives OS reinstalls), registers an org named `zaniicode-<fingerprint>`, issues its own ingest key, and keeps everything under `~/.zaniicode/`. From then on, the banner shows live proof state:
+There is no signup form to fill. On first launch CCZ derives an identity from your hardware (SMBIOS UUID, so it survives OS reinstalls), registers an org named `zaniicode-<fingerprint>`, issues its own ingest key, and keeps everything under `~/.zaniicode/`. From then on, the banner shows live proof state:
 
 ```
 zanii ✓ proof verified · log #6156 · root 54874cc8
@@ -46,18 +46,18 @@ Receipts record *that* a tool ran and whether it succeeded — not what was in i
 | | | |
 |---|---|---|
 | **Goal mode** — `/goal` drives the agent across turns until done; token budgets, pause/resume, blocked-attempt audits | **Ultracode orchestration** — deterministic JS workflows (`agent`/`pipeline`/`parallel`) with journal replay and a live monitor panel | **Multi-provider login** — Anthropic, Bedrock, Vertex, Foundry, plus OpenAI/Gemini/Grok-compatible endpoints via `/login` |
-| **Remote Control** — self-hosted Docker control panel, run sessions from your phone ([docs](https://ccb.agent-aura.top/docs/features/remote-control-self-hosting)) | **ACP support** — first-class Zed/Cursor integration with session resume and permission bridging ([docs](https://ccb.agent-aura.top/docs/features/acp-zed)) | **Langfuse tracing** — inspect every agent-loop step, export runs as datasets ([docs](https://ccb.agent-aura.top/docs/features/langfuse-monitoring)) |
-| **Pipe IPC & LAN swarm** — multi-instance collaboration on one machine or across the LAN ([docs](https://ccb.agent-aura.top/docs/features/uds-inbox)) | **Web search** — built-in Bing/Brave search tool ([docs](https://ccb.agent-aura.top/docs/features/web-browser-tool)) | **Computer & Chrome use** — screenshots, keyboard/mouse, browser automation ([docs](https://ccb.agent-aura.top/docs/features/computer-use)) |
-| **Poor mode** — `/poor` cuts memory extraction and suggestions to slash request volume | **Channels** — push external messages into a session (Slack, Discord, 飞书, WeChat) ([docs](https://ccb.agent-aura.top/docs/features/channels)) | **Teach-me skill** — `/teach-me <topic>` walks you through this codebase Socratically |
+| **Remote Control** — self-hosted Docker control panel, run sessions from your phone ([docs](https://CCZ.agent-aura.top/docs/features/remote-control-self-hosting)) | **ACP support** — first-class Zed/Cursor integration with session resume and permission bridging ([docs](https://CCZ.agent-aura.top/docs/features/acp-zed)) | **Langfuse tracing** — inspect every agent-loop step, export runs as datasets ([docs](https://CCZ.agent-aura.top/docs/features/langfuse-monitoring)) |
+| **Pipe IPC & LAN swarm** — multi-instance collaboration on one machine or across the LAN ([docs](https://CCZ.agent-aura.top/docs/features/uds-inbox)) | **Web search** — built-in Bing/Brave search tool ([docs](https://CCZ.agent-aura.top/docs/features/web-browser-tool)) | **Computer & Chrome use** — screenshots, keyboard/mouse, browser automation ([docs](https://CCZ.agent-aura.top/docs/features/computer-use)) |
+| **Poor mode** — `/poor` cuts memory extraction and suggestions to slash request volume | **Channels** — push external messages into a session (Slack, Discord, 飞书, WeChat) ([docs](https://CCZ.agent-aura.top/docs/features/channels)) | **Teach-me skill** — `/teach-me <topic>` walks you through this codebase Socratically |
 
 ## Install
 
 ```sh
 npm i -g claude-code-best
 
-ccb        # Node.js entry
-ccb-bun    # Bun entry
-ccb update
+CCZ        # Node.js entry
+CCZ-bun    # Bun entry
+CCZ update
 ```
 
 If install or update misbehaves: `npm rm -g claude-code-best && npm i -g claude-code-best@latest`.
@@ -94,7 +94,7 @@ Tab / Shift+Tab moves between fields, Enter confirms.
 
 ### Config home
 
-CCB uses `~/.zaniicode/` by default and never touches official Claude Code's `~/.claude` — settings, credentials, and session history stay separate even when both tools are installed. Project-level `.claude/` folders are still read, as usual. Override with `CLAUDE_CONFIG_DIR` if needed.
+CCZ uses `~/.zaniicode/` by default and never touches official Claude Code's `~/.claude` — settings, credentials, and session history stay separate even when both tools are installed. Project-level `.claude/` folders are still read, as usual. Override with `CLAUDE_CONFIG_DIR` if needed.
 
 ### Feature flags
 

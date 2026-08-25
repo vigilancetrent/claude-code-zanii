@@ -14,8 +14,8 @@
 
   <!-- banner box -->
   <rect x="28" y="94" width="600" height="196" rx="8" fill="none" stroke="#d77757" stroke-width="1.4"/>
-  <text x="44" y="94" dy="-6" fill="#e6edf3" font-size="13">&#160;Claude Code&#160;</text>
-  <text x="152" y="88" fill="#58626e" font-size="12">v2.8.4</text>
+  <text x="44" y="94" dy="-6" fill="#e6edf3" font-size="13">&#160;Claude Code Zanii&#160;</text>
+  <text x="212" y="88" fill="#58626e" font-size="12">v2.8.4</text>
 
   <text x="52" y="130" fill="#e6edf3" font-size="14" font-weight="bold">Welcome back, Hp</text>
   <text x="52" y="158" fill="#8b949e" font-size="13">claude-sonnet-4-6 &#183; API</text>
