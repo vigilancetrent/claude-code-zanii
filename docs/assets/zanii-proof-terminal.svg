@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="780" height="392" viewBox="0 0 780 392" font-family="ui-monospace,'Cascadia Code','SF Mono',Menlo,Consolas,monospace">
+  <!-- window -->
+  <rect x="0" y="0" width="780" height="392" rx="10" fill="#101418"/>
+  <rect x="0.5" y="0.5" width="779" height="391" rx="9.5" fill="none" stroke="#2a3038"/>
+  <circle cx="24" cy="24" r="6" fill="#3a414b"/>
+  <circle cx="44" cy="24" r="6" fill="#3a414b"/>
+  <circle cx="64" cy="24" r="6" fill="#3a414b"/>
+  <text x="700" y="29" fill="#58626e" font-size="12">zsh</text>
+  <line x1="0" y1="42" x2="780" y2="42" stroke="#2a3038"/>
+
+  <!-- prompt -->
+  <text x="28" y="74" fill="#58626e" font-size="14">~&#160;&#160;$&#160;</text>
+  <text x="62" y="74" fill="#e6edf3" font-size="14">ccb</text>
+
+  <!-- banner box -->
+  <rect x="28" y="94" width="600" height="196" rx="8" fill="none" stroke="#d77757" stroke-width="1.4"/>
+  <text x="44" y="94" dy="-6" fill="#e6edf3" font-size="13">&#160;Claude Code&#160;</text>
+  <text x="152" y="88" fill="#58626e" font-size="12">v2.8.4</text>
+
+  <text x="52" y="130" fill="#e6edf3" font-size="14" font-weight="bold">Welcome back, Hp</text>
+  <text x="52" y="158" fill="#8b949e" font-size="13">claude-sonnet-4-6 &#183; API</text>
+  <text x="52" y="180" fill="#8b949e" font-size="13">~/projects/payments-service</text>
+
+  <line x1="52" y1="198" x2="604" y2="198" stroke="#22272e"/>
+
+  <text x="52" y="226" fill="#3fb950" font-size="13">zanii &#10003; proof verified</text>
+  <text x="234" y="226" fill="#8b949e" font-size="13">&#183; log #6156 &#183; root 54874cc8</text>
+  <text x="52" y="252" fill="#58626e" font-size="12">did:key:z6MksqvnkhC5LumoABDvdSwcZWLck2jMdW2B8ifzwXMR9H98</text>
+  <text x="52" y="274" fill="#58626e" font-size="12">org 13 &#183; zaniicode-e99c01f712ed</text>
+
+  <!-- tool call trace -->
+  <text x="28" y="322" fill="#58626e" font-size="13">&gt;</text>
+  <text x="44" y="322" fill="#e6edf3" font-size="13">run the test suite</text>
+  <text x="28" y="346" fill="#8b949e" font-size="13">&#160;&#160;&#160;Bash</text>
+  <text x="76" y="346" fill="#58626e" font-size="13">bun test</text>
+  <text x="150" y="346" fill="#3fb950" font-size="13">&#10003; receipted</text>
+  <text x="28" y="370" fill="#58626e" font-size="13">&#160;&#160;&#160;6031 pass &#183; 0 fail</text>
+</svg>
