@@ -1,16 +1,16 @@
-# Claude Code Zanii (CCZ)
+﻿# Claude Code Zanii (CCZ)
 
-[![GitHub Stars](https://img.shields.io/github/stars/claude-code-best/claude-code?style=flat-square&logo=github&color=yellow)](https://github.com/claude-code-best/claude-code/stargazers)
-[![GitHub Contributors](https://img.shields.io/github/contributors/claude-code-best/claude-code?style=flat-square&color=green)](https://github.com/claude-code-best/claude-code/graphs/contributors)
-[![GitHub Issues](https://img.shields.io/github/issues/claude-code-best/claude-code?style=flat-square&color=orange)](https://github.com/claude-code-best/claude-code/issues)
-[![GitHub License](https://img.shields.io/github/license/claude-code-best/claude-code?style=flat-square)](https://github.com/claude-code-best/claude-code/blob/main/LICENSE)
-[![Last Commit](https://img.shields.io/github/last-commit/claude-code-best/claude-code?style=flat-square&color=blue)](https://github.com/claude-code-best/claude-code/commits/main)
+[![GitHub Stars](https://img.shields.io/github/stars/vigilancetrent/claude-code-zanii?style=flat-square&logo=github&color=yellow)](https://github.com/vigilancetrent/claude-code-zanii/stargazers)
+[![GitHub Contributors](https://img.shields.io/github/contributors/vigilancetrent/claude-code-zanii?style=flat-square&color=green)](https://github.com/vigilancetrent/claude-code-zanii/graphs/contributors)
+[![GitHub Issues](https://img.shields.io/github/issues/vigilancetrent/claude-code-zanii?style=flat-square&color=orange)](https://github.com/vigilancetrent/claude-code-zanii/issues)
+[![GitHub License](https://img.shields.io/github/license/vigilancetrent/claude-code-zanii?style=flat-square)](https://github.com/vigilancetrent/claude-code-zanii/blob/main/LICENSE)
+[![Last Commit](https://img.shields.io/github/last-commit/vigilancetrent/claude-code-zanii?style=flat-square&color=blue)](https://github.com/vigilancetrent/claude-code-zanii/commits/main)
 [![Bun](https://img.shields.io/badge/runtime-Bun-black?style=flat-square&logo=bun)](https://bun.sh/)
 [![Discord](https://img.shields.io/badge/Discord-Join-5865F2?style=flat-square&logo=discord)](https://discord.gg/uApuzJWGKX)
 
 A fully restored, open build of Anthropic's [Claude Code](https://docs.anthropic.com/en/docs/claude-code) CLI — every core loop rebuilt in TypeScript on Bun, with the telemetry and lock-ins removed and a few things added that upstream doesn't have. Compatible with existing `CLAUDE.md` / `.claude` setups out of the box.
 
-中文文档：[CCZ.agent-aura.top](https://CCZ.agent-aura.top/) · [社区项目留影](./Friends.md)
+中文文档：[ccb.agent-aura.top](https://ccb.agent-aura.top/) · [社区项目留影](./Friends.md)
 
 ![Claude Code Zanii terminal session showing a verified Zanii proof](docs/assets/zanii-proof-terminal.svg)
 
@@ -46,21 +46,21 @@ Receipts record *that* a tool ran and whether it succeeded — not what was in i
 | | | |
 |---|---|---|
 | **Goal mode** — `/goal` drives the agent across turns until done; token budgets, pause/resume, blocked-attempt audits | **Ultracode orchestration** — deterministic JS workflows (`agent`/`pipeline`/`parallel`) with journal replay and a live monitor panel | **Multi-provider login** — Anthropic, Bedrock, Vertex, Foundry, plus OpenAI/Gemini/Grok-compatible endpoints via `/login` |
-| **Remote Control** — self-hosted Docker control panel, run sessions from your phone ([docs](https://CCZ.agent-aura.top/docs/features/remote-control-self-hosting)) | **ACP support** — first-class Zed/Cursor integration with session resume and permission bridging ([docs](https://CCZ.agent-aura.top/docs/features/acp-zed)) | **Langfuse tracing** — inspect every agent-loop step, export runs as datasets ([docs](https://CCZ.agent-aura.top/docs/features/langfuse-monitoring)) |
-| **Pipe IPC & LAN swarm** — multi-instance collaboration on one machine or across the LAN ([docs](https://CCZ.agent-aura.top/docs/features/uds-inbox)) | **Web search** — built-in Bing/Brave search tool ([docs](https://CCZ.agent-aura.top/docs/features/web-browser-tool)) | **Computer & Chrome use** — screenshots, keyboard/mouse, browser automation ([docs](https://CCZ.agent-aura.top/docs/features/computer-use)) |
-| **Poor mode** — `/poor` cuts memory extraction and suggestions to slash request volume | **Channels** — push external messages into a session (Slack, Discord, 飞书, WeChat) ([docs](https://CCZ.agent-aura.top/docs/features/channels)) | **Teach-me skill** — `/teach-me <topic>` walks you through this codebase Socratically |
+| **Remote Control** — self-hosted Docker control panel, run sessions from your phone ([docs](https://ccb.agent-aura.top/docs/features/remote-control-self-hosting)) | **ACP support** — first-class Zed/Cursor integration with session resume and permission bridging ([docs](https://ccb.agent-aura.top/docs/features/acp-zed)) | **Langfuse tracing** — inspect every agent-loop step, export runs as datasets ([docs](https://ccb.agent-aura.top/docs/features/langfuse-monitoring)) |
+| **Pipe IPC & LAN swarm** — multi-instance collaboration on one machine or across the LAN ([docs](https://ccb.agent-aura.top/docs/features/uds-inbox)) | **Web search** — built-in Bing/Brave search tool ([docs](https://ccb.agent-aura.top/docs/features/web-browser-tool)) | **Computer & Chrome use** — screenshots, keyboard/mouse, browser automation ([docs](https://ccb.agent-aura.top/docs/features/computer-use)) |
+| **Poor mode** — `/poor` cuts memory extraction and suggestions to slash request volume | **Channels** — push external messages into a session (Slack, Discord, 飞书, WeChat) ([docs](https://ccb.agent-aura.top/docs/features/channels)) | **Teach-me skill** — `/teach-me <topic>` walks you through this codebase Socratically |
 
 ## Install
 
 ```sh
-npm i -g claude-code-best
+npm i -g claude-code-zanii
 
-CCZ        # Node.js entry
-CCZ-bun    # Bun entry
-CCZ update
+ccz        # Node.js entry
+ccz-bun    # Bun entry
+ccz update
 ```
 
-If install or update misbehaves: `npm rm -g claude-code-best && npm i -g claude-code-best@latest`.
+If install or update misbehaves: `npm rm -g claude-code-best && npm i -g claude-code-zanii@latest`.
 
 ## Run from source
 
@@ -72,8 +72,8 @@ curl -fsSL https://bun.sh/install | bash
 # Windows (PowerShell)
 powershell -c "irm bun.sh/install.ps1 | iex"
 
-git clone https://github.com/claude-code-best/claude-code.git
-cd claude-code
+git clone https://github.com/vigilancetrent/claude-code-zanii.git
+cd claude-code-zanii
 bun install
 
 bun run dev     # dev mode — version ending in .888 means you're set
@@ -118,21 +118,21 @@ bun run dev:inspect  # debugger for attach mode
 
 TUI debugging needs a real terminal, so use attach: start `bun run dev:inspect`, then F5 → "Attach to Bun (TUI debug)" in VS Code with breakpoints set under `src/`.
 
-Architecture notes and module map: [AGENTS.md](AGENTS.md) · [DeepWiki](https://deepwiki.com/claude-code-best/claude-code)
+Architecture notes and module map: [AGENTS.md](AGENTS.md) · [DeepWiki](https://deepwiki.com/vigilancetrent/claude-code-zanii)
 
 ## Contributors
 
-<a href="https://github.com/claude-code-best/claude-code/graphs/contributors">
+<a href="https://github.com/vigilancetrent/claude-code-zanii/graphs/contributors">
   <img src="contributors.svg" alt="Contributors" />
 </a>
 
 ## Star history
 
-<a href="https://www.star-history.com/?repos=claude-code-best%2Fclaude-code&type=date&legend=top-left">
+<a href="https://www.star-history.com/?repos=vigilancetrent%2Fclaude-code-zanii&type=date&legend=top-left">
  <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=claude-code-best/claude-code&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=claude-code-best/claude-code&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=claude-code-best/claude-code&type=date&legend=top-left" />
+   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/image?repos=vigilancetrent/claude-code-zanii&type=date&theme=dark&legend=top-left" />
+   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/image?repos=vigilancetrent/claude-code-zanii&type=date&legend=top-left" />
+   <img alt="Star History Chart" src="https://api.star-history.com/image?repos=vigilancetrent/claude-code-zanii&type=date&legend=top-left" />
  </picture>
 </a>
 

@@ -10,7 +10,7 @@
 
   <!-- prompt -->
   <text x="28" y="74" fill="#58626e" font-size="14">~&#160;&#160;$&#160;</text>
-  <text x="62" y="74" fill="#e6edf3" font-size="14">ccb</text>
+  <text x="62" y="74" fill="#e6edf3" font-size="14">ccz</text>
 
   <!-- banner box -->
   <rect x="28" y="94" width="600" height="196" rx="8" fill="none" stroke="#d77757" stroke-width="1.4"/>
