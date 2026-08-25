@@ -1,6 +1,6 @@
 {
   "name": "claude-code-zanii",
-  "version": "2.8.4",
+  "version": "2.8.5",
   "description": "Reverse-engineered Anthropic Claude Code CLI — interactive AI coding assistant in the terminal",
   "type": "module",
   "author": "claude-code-best <claude-code-best@proton.me>",
@@ -46,7 +46,7 @@
     "build:bun": "bun run build.ts",
     "dev": "bun run scripts/dev.ts",
     "dev:inspect": "bun run scripts/dev-debug.ts",
-    "prepublishOnly": "bun run build:vite",
+    "prepublishOnly": "bun run build",
     "lint": "biome lint .",
     "lint:fix": "biome lint --fix .",
     "format": "biome format --write .",
