@@ -1,0 +1,132 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 520" font-family="Inter, system-ui, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#0f0f12"/>
+      <stop offset="100%" stop-color="#1a1a24"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#D77757"/>
+      <stop offset="100%" stop-color="#E8956E"/>
+    </linearGradient>
+    <linearGradient id="l3g" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#9F67FF"/>
+    </linearGradient>
+    <linearGradient id="l2g" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#60A5FA"/>
+    </linearGradient>
+    <linearGradient id="l1g" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#059669"/>
+      <stop offset="100%" stop-color="#34D399"/>
+    </linearGradient>
+    <linearGradient id="graphg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#D77757"/>
+      <stop offset="100%" stop-color="#E8956E"/>
+    </linearGradient>
+    <linearGradient id="skillg" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#CA8A04"/>
+      <stop offset="100%" stop-color="#FBBF24"/>
+    </linearGradient>
+    <linearGradient id="wikig" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0%" stop-color="#0891B2"/>
+      <stop offset="100%" stop-color="#22D3EE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background -->
+  <rect width="880" height="520" fill="url(#bg)" rx="16"/>
+
+  <!-- Title -->
+  <text x="440" y="44" text-anchor="middle" fill="#D77757" font-size="20" font-weight="700" letter-spacing="-0.5">Layered Memory System</text>
+  <text x="440" y="66" text-anchor="middle" fill="#888" font-size="12" font-weight="400">TAM-inspired · Proof-of-Action Verified · Persistent</text>
+
+  <!-- ── LEFT: Distillation Pipeline ── -->
+  <text x="40" y="108" fill="#aaa" font-size="11" font-weight="600" letter-spacing="1.5" text-transform="uppercase">DISTILLATION PIPELINE</text>
+
+  <!-- L3 Box -->
+  <rect x="40" y="122" width="360" height="70" rx="12" fill="#1e1e2e" stroke="#7C3AED" stroke-width="1.5"/>
+  <rect x="40" y="122" width="5" height="70" rx="2.5" fill="url(#l3g)"/>
+  <text x="58" y="145" fill="#9F67FF" font-size="14" font-weight="700">L3 · Persona</text>
+  <text x="58" y="163" fill="#ccc" font-size="11">Learnings, error corrections, behavioral patterns</text>
+  <text x="58" y="180" fill="#888" font-size="10">Persistent across sessions · Highest priority</text>
+
+  <!-- L2 Box -->
+  <rect x="40" y="202" width="360" height="70" rx="12" fill="#1e1e2e" stroke="#2563EB" stroke-width="1.5"/>
+  <rect x="40" y="202" width="5" height="70" rx="2.5" fill="url(#l2g)"/>
+  <text x="58" y="225" fill="#60A5FA" font-size="14" font-weight="700">L2 · Scenarios</text>
+  <text x="58" y="243" fill="#ccc" font-size="11">Task specs, workflow docs, codebase references</text>
+  <text x="58" y="260" fill="#888" font-size="10">Session-scoped · Medium priority</text>
+
+  <!-- L1 Box -->
+  <rect x="40" y="282" width="360" height="70" rx="12" fill="#1e1e2e" stroke="#059669" stroke-width="1.5"/>
+  <rect x="40" y="282" width="5" height="70" rx="2.5" fill="url(#l1g)"/>
+  <text x="58" y="305" fill="#34D399" font-size="14" font-weight="700">L1 · Atoms</text>
+  <text x="58" y="323" fill="#ccc" font-size="11">File facts, commands, environment, quick recall</text>
+  <text x="58" y="340" fill="#888" font-size="10">Auto-extracted · High throughput</text>
+
+  <!-- Arrows between layers -->
+  <path d="M 220 192 L 220 202" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#arrowGray)"/>
+  <path d="M 220 272 L 220 282" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#arrowGray)"/>
+  <defs>
+    <marker id="arrowGray" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#555"/>
+    </marker>
+  </defs>
+
+  <!-- Compression badge -->
+  <rect x="290" y="130" width="96" height="22" rx="11" fill="#7C3AED22" stroke="#7C3AED" stroke-width="0.8"/>
+  <text x="338" y="145" text-anchor="middle" fill="#9F67FF" font-size="9" font-weight="600">12-char hash</text>
+
+  <rect x="290" y="210" width="96" height="22" rx="11" fill="#2563EB22" stroke="#2563EB" stroke-width="0.8"/>
+  <text x="338" y="225" text-anchor="middle" fill="#60A5FA" font-size="9" font-weight="600">12-char hash</text>
+
+  <rect x="290" y="290" width="96" height="22" rx="11" fill="#05966922" stroke="#059669" stroke-width="0.8"/>
+  <text x="338" y="305" text-anchor="middle" fill="#34D399" font-size="9" font-weight="600">12-char hash</text>
+
+  <!-- ── RIGHT: Supporting Systems ── -->
+  <text x="460" y="108" fill="#aaa" font-size="11" font-weight="600" letter-spacing="1.5">SUPPORTING SYSTEMS</text>
+
+  <!-- CodeGraph Box -->
+  <rect x="460" y="122" width="380" height="70" rx="12" fill="#1e1e2e" stroke="url(#graphg)" stroke-width="1.5"/>
+  <rect x="460" y="122" width="5" height="70" rx="2.5" fill="url(#graphg)"/>
+  <text x="478" y="145" fill="#E8956E" font-size="14" font-weight="700">CodeGraph</text>
+  <text x="478" y="163" fill="#ccc" font-size="11">Regex-based TS/JS indexer · Call hierarchy · Blast radius</text>
+  <text x="478" y="180" fill="#888" font-size="10">Incremental mtime · JSON persistence · Symlink-safe</text>
+
+  <!-- Wiki Box -->
+  <rect x="460" y="202" width="380" height="70" rx="12" fill="#1e1e2e" stroke="url(#wikig)" stroke-width="1.5"/>
+  <rect x="460" y="202" width="5" height="70" rx="2.5" fill="url(#wikig)"/>
+  <text x="478" y="225" fill="#22D3EE" font-size="14" font-weight="700">Wiki-Lite Search</text>
+  <text x="478" y="243" fill="#ccc" font-size="11">PageRank · TF + link authority blending · Backlink graph</text>
+  <text x="478" y="260" fill="#888" font-size="10">Damping 0.85 · 20 iterations · Unicode-aware</text>
+
+  <!-- Skill Box -->
+  <rect x="460" y="282" width="380" height="70" rx="12" fill="#1e1e2e" stroke="url(#skillg)" stroke-width="1.5"/>
+  <rect x="460" y="282" width="5" height="70" rx="2.5" fill="url(#skillg)"/>
+  <text x="478" y="305" fill="#FBBF24" font-size="14" font-weight="700">Skill Lifecycle</text>
+  <text x="478" y="323" fill="#ccc" font-size="11">Promote / demote / validate / version · Frontmatter stamps</text>
+  <text x="478" y="340" fill="#888" font-size="10">Async I/O · 3 validation rules · Semver patch bump</text>
+
+  <!-- ── BOTTOM: Team + Proofs ── -->
+  <rect x="40" y="380" width="800" height="100" rx="12" fill="#1e1e2e" stroke="#333" stroke-width="1"/>
+
+  <text x="60" y="405" fill="#D77757" font-size="14" font-weight="700">Team Loadouts & ACL</text>
+  <text x="60" y="423" fill="#ccc" font-size="11">Agent registry · Roles (admin/editor/viewer) · Scope-based read/write · maxEntries budget</text>
+  <text x="60" y="441" fill="#888" font-size="10">Persisted to ~/.zaniicode/agent-registry.json · Atomic writes</text>
+
+  <text x="560" y="405" fill="#D77757" font-size="14" font-weight="700">Zanii Proofs</text>
+  <text x="560" y="423" fill="#ccc" font-size="11">Every memory write → signed receipt → Merkle log → on-chain anchor</text>
+  <text x="560" y="441" fill="#888" font-size="10">100% local · Only hashes leave the machine</text>
+
+  <!-- Connection lines -->
+  <line x1="400" y1="157" x2="460" y2="157" stroke="#444" stroke-width="1" stroke-dasharray="4 3"/>
+  <line x1="400" y1="237" x2="460" y2="237" stroke="#444" stroke-width="1" stroke-dasharray="4 3"/>
+  <line x1="400" y1="317" x2="460" y2="317" stroke="#444" stroke-width="1" stroke-dasharray="4 3"/>
+
+  <line x1="220" y1="352" x2="220" y2="380" stroke="#444" stroke-width="1" stroke-dasharray="4 3"/>
+  <line x1="650" y1="352" x2="650" y2="380" stroke="#444" stroke-width="1" stroke-dasharray="4 3"/>
+
+  <!-- Footer -->
+  <text x="440" y="510" text-anchor="middle" fill="#555" font-size="10" font-weight="400">v2.9.0 · 6031 tests passing · Type-safe · Zero telemetry</text>
+</svg>

@@ -14,6 +14,8 @@ A fully restored, open build of Anthropic's [Claude Code](https://docs.anthropic
 
 ![Claude Code Zanii terminal session showing a verified Zanii proof](docs/assets/zanii-proof-terminal.svg)
 
+> **v2.9.0** — Layered memory system (L1/L2/L3), CodeGraph, Wiki-Lite with PageRank, skill promotion, team ACL, 24 bug fixes. [Release notes](https://github.com/vigilancetrent/claude-code-zanii/releases/tag/v2.9.0)
+
 ## Proof of action
 
 Every session can leave a verifiable trail. Claude Code Zanii integrates [Zanii](https://ledger.zanii.agency), a transparency log for AI agents: each tool call becomes a signed, hash-chained receipt in an append-only Merkle log that is periodically anchored on-chain. Only a **hash** of each action is stored — your code and file contents never leave the machine.
@@ -49,8 +51,10 @@ Receipts record *that* a tool ran and whether it succeeded — not what was in i
 | **Remote Control** — self-hosted Docker control panel, run sessions from your phone ([docs](https://ccb.agent-aura.top/docs/features/remote-control-self-hosting)) | **ACP support** — first-class Zed/Cursor integration with session resume and permission bridging ([docs](https://ccb.agent-aura.top/docs/features/acp-zed)) | **Langfuse tracing** — inspect every agent-loop step, export runs as datasets ([docs](https://ccb.agent-aura.top/docs/features/langfuse-monitoring)) |
 | **Pipe IPC & LAN swarm** — multi-instance collaboration on one machine or across the LAN ([docs](https://ccb.agent-aura.top/docs/features/uds-inbox)) | **Web search** — built-in Bing/Brave search tool ([docs](https://ccb.agent-aura.top/docs/features/web-browser-tool)) | **Computer & Chrome use** — screenshots, keyboard/mouse, browser automation ([docs](https://ccb.agent-aura.top/docs/features/computer-use)) |
 | **Poor mode** — `/poor` cuts memory extraction and suggestions to slash request volume | **Channels** — push external messages into a session (Slack, Discord, 飞书, WeChat) ([docs](https://ccb.agent-aura.top/docs/features/channels)) | **Teach-me skill** — `/teach-me <topic>` walks you through this codebase Socratically |
-| **Layered memory** — L1/L2/L3 distillation pipeline, provable writes via Zanii receipts, `/memory audit|list|clear` ([docs](https://ccb.agent-aura.top/docs/features/ccz-memory-plan)) | **Wiki-lite** — cross-link detection + keyword search across Magic Docs via `WikiSearchTool` ([docs](https://ccb.agent-aura.top/docs/features/wiki-lite)) | **Impact analysis** — callers/callees/blast radius via LSP before editing ([docs](https://ccb.agent-aura.top/docs/features/impact-analysis)) |
-| **Skill promotion** — `/skill-promote` moves skills from project to user scope with status tracking ([docs](https://ccb.agent-aura.top/docs/features/skill-promotion)) | **Team loadouts** — role-based memory filtering per agent (TEAMMEM extension) ([docs](https://ccb.agent-aura.top/docs/features/team-loadouts)) | |
+| **Layered memory** — L1/L2/L3 distillation pipeline, provable writes via Zanii receipts, `/memory audit|list|clear` ([docs](https://ccb.agent-aura.top/docs/features/ccz-memory-plan)) | **Wiki-lite** — cross-link detection + PageRank keyword search across Magic Docs via `WikiSearchTool` ([docs](https://ccb.agent-aura.top/docs/features/wiki-lite)) | **Impact analysis** — callers/callees/blast radius via LSP or CodeGraph ([docs](https://ccb.agent-aura.top/docs/features/impact-analysis)) |
+| **Skill promotion** — `/skill-promote` moves skills from project to user scope with semver versioning ([docs](https://ccb.agent-aura.top/docs/features/skill-promotion)) | **Team loadouts** — role-based memory filtering per agent with persistent registry ([docs](https://ccb.agent-aura.top/docs/features/team-loadouts)) | **CodeGraph** — incremental TS/JS indexer with mtime tracking + JSON persistence |
+
+![Layered Memory System Architecture](docs/assets/memory-system.svg)
 
 ## Install
 
