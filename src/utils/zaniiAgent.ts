@@ -209,6 +209,34 @@ export function zaniiRecordToolCall(toolName: string, isError: boolean): void {
   })().catch(() => {})
 }
 
+/**
+ * Fire-and-forget receipt for a memory write. Hashes the content and
+ * records store/key/source so memory provenance is auditable.
+ * No-op without an API key or when offline.
+ */
+export function zaniiRecordMemoryWrite(
+  store: string,
+  key: string,
+  content: string,
+  source: 'session' | 'user' | 'agent',
+): void {
+  if (!isZaniiEnabled()) return
+  if (!resolveApiKey()) return
+  void (async () => {
+    const agent = getAgent()
+    if (!agent) return
+    const contentHash = createHash('sha256')
+      .update(content)
+      .digest('hex')
+      .slice(0, 16)
+    await agent.record({
+      action: 'memory_write',
+      target: `cli.memory.${store}.${key}`,
+      payload: { contentHash, source, contentLength: content.length },
+    })
+  })().catch(() => {})
+}
+
 // ── Hardware fingerprint & self-serve account provisioning ──────────────────
 
 function runCommand(cmd: string, args: string[]): string | null {

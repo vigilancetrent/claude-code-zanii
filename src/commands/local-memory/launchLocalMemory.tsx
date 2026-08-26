@@ -15,6 +15,7 @@ import TextInput from '../../components/TextInput.js';
 import { LocalMemoryView } from './LocalMemoryView.js';
 import { parseLocalMemoryArgs } from './parseArgs.js';
 import { launchCommand } from '../_shared/launchCommand.js';
+import { zaniiRecordMemoryWrite } from '../../utils/zaniiAgent.js';
 
 const USAGE =
   'Usage: /local-memory list | create STORE | store STORE KEY VALUE | fetch STORE KEY | entries STORE | archive STORE';
@@ -192,6 +193,7 @@ function LocalMemoryPanel({ onDone }: { onDone: LocalJSXCommandOnDone }): React.
             return;
           }
           setEntry(store, key, value);
+          zaniiRecordMemoryWrite(store, key, value, 'user');
           closeWith(`Stored ${store}/${key} (${value.length} chars)`);
           return;
         }
@@ -468,6 +470,7 @@ async function dispatchLocalMemory(
   if (parsed.action === 'store') {
     const { store, key, value } = parsed;
     setEntry(store, key, value);
+    zaniiRecordMemoryWrite(store, key, value, 'user');
     onDone(`Stored entry "${key}" in store "${store}".`, { display: 'system' });
     return null;
   }

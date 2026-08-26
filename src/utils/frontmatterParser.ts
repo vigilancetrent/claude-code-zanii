@@ -55,6 +55,12 @@ export type FrontmatterData = {
   // Never consults settings.defaultShell: skills are portable across platforms,
   // so the author picks the shell, not the reader. See docs/design/ps-shell-selection.md §5.3.
   shell?: string | null
+  // Skill promotion status: 'draft' | 'stable' | 'deprecated'
+  status?: string | null
+  // ISO timestamp of when this skill was promoted to a higher scope
+  promotedAt?: string | null
+  // Original path before promotion (for demote)
+  promotedFrom?: string | null
   [key: string]: unknown
 }
 

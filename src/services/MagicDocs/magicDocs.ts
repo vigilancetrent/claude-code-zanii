@@ -15,6 +15,7 @@ import {
   type Output as FileReadToolOutput,
   registerFileReadListener,
 } from '@claude-code-best/builtin-tools/tools/FileReadTool/FileReadTool.js'
+import path from 'path'
 import { isFsInaccessible } from '../../utils/errors.js'
 import { cloneFileStateCache } from '../../utils/fileStateCache.js'
 import {
@@ -27,6 +28,7 @@ import {
 } from '../../utils/messages.js'
 import { sequential } from '../../utils/sequential.js'
 import { buildMagicDocsUpdatePrompt } from './prompts.js'
+import { indexMagicDoc, removeMagicDoc, clearWikiIndex } from './wikiIndex.js'
 
 // Magic Doc header pattern: # MAGIC DOC: [title]
 // Matches at the start of the file (first line)
@@ -35,7 +37,7 @@ const MAGIC_DOC_HEADER_PATTERN = /^#\s*MAGIC\s+DOC:\s*(.+)$/im
 const ITALICS_PATTERN = /^[_*](.+?)[_*]\s*$/m
 
 // Track magic docs
-type MagicDocInfo = {
+export type MagicDocInfo = {
   path: string
 }
 
@@ -43,6 +45,7 @@ const trackedMagicDocs = new Map<string, MagicDocInfo>()
 
 export function clearTrackedMagicDocs(): void {
   trackedMagicDocs.clear()
+  clearWikiIndex()
 }
 
 /**
@@ -147,6 +150,7 @@ async function updateMagicDoc(
       (e instanceof Error && e.message.startsWith('File does not exist'))
     ) {
       trackedMagicDocs.delete(docInfo.path)
+      removeMagicDoc(docInfo.path)
       return
     }
     throw e
@@ -157,6 +161,7 @@ async function updateMagicDoc(
   if (!detected) {
     // File no longer has magic doc header, remove from tracking
     trackedMagicDocs.delete(docInfo.path)
+    removeMagicDoc(docInfo.path)
     return
   }
 
@@ -209,6 +214,28 @@ async function updateMagicDoc(
   })) {
     // Just consume - let it run to completion
   }
+
+  // Re-index after agent update (agent may have changed content)
+  try {
+    const freshResult = await FileReadTool.call(
+      { file_path: docInfo.path },
+      clonedToolUseContext,
+    )
+    const freshOutput = freshResult.data as FileReadToolOutput
+    if (freshOutput.type === 'text') {
+      const freshDetected = detectMagicDocHeader(freshOutput.file.content)
+      if (freshDetected) {
+        indexMagicDoc(
+          docInfo.path,
+          freshDetected.title,
+          freshOutput.file.content,
+          (rel: string) => path.resolve(path.dirname(docInfo.path), rel),
+        )
+      }
+    }
+  } catch {
+    // ignore — file may have been deleted during update
+  }
 }
 
 /**
@@ -240,15 +267,17 @@ const updateMagicDocs = sequential(async function (
 })
 
 export async function initMagicDocs(): Promise<void> {
-  if (process.env.USER_TYPE === 'ant') {
-    // Register listener to detect magic docs when files are read
-    registerFileReadListener((filePath: string, content: string) => {
-      const result = detectMagicDocHeader(content)
-      if (result) {
-        registerMagicDoc(filePath)
-      }
-    })
+  // Register listener to detect and index magic docs when files are read
+  registerFileReadListener((filePath: string, content: string) => {
+    const result = detectMagicDocHeader(content)
+    if (result) {
+      registerMagicDoc(filePath)
+      // Index for wiki search (cross-links + full-text)
+      indexMagicDoc(filePath, result.title, content, (rel: string) =>
+        path.resolve(path.dirname(filePath), rel),
+      )
+    }
+  })
 
-    registerPostSamplingHook(updateMagicDocs)
-  }
+  registerPostSamplingHook(updateMagicDocs)
 }

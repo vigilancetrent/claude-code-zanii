@@ -38,6 +38,7 @@ import {
   getTeamMemPath,
   PathTraversalError,
   validateTeamMemKey,
+  filterEntriesByRole,
 } from '../../memdir/teamMemPaths.js'
 import { count } from '../../utils/array.js'
 import {
@@ -831,6 +832,11 @@ export async function pullTeamMemory(
 
   const entries = result.data.content.entries
   const responseChecksums = result.data.content.entryChecksums
+  const entryMeta = result.data.content.meta
+
+  // Filter entries by role (role-based loadouts)
+  // If CCZ_TEAMMEM_AGENT_ROLE is not set, filterEntriesByRole returns all entries
+  const filteredEntries = filterEntriesByRole(entries, entryMeta)
 
   // Refresh serverChecksums from server-provided per-key hashes.
   // Requires anthropic/anthropic#283027 — if the response lacks entryChecksums
@@ -848,7 +854,7 @@ export async function pullTeamMemory(
     )
   }
 
-  const filesWritten = await writeRemoteEntriesToLocal(entries)
+  const filesWritten = await writeRemoteEntriesToLocal(filteredEntries)
   if (filesWritten > 0) {
     const { clearMemoryFileCaches } = await import('../../utils/claudemd.js')
     clearMemoryFileCaches()

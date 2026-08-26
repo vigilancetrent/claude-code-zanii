@@ -17,6 +17,7 @@ import {
   LOCAL_MEMORY_RECALL_TOOL_NAME,
   PER_TURN_FETCH_BUDGET_BYTES,
   PREVIEW_CAP_BYTES,
+  RECALL_INDEX_CAP_BYTES,
 } from './constants.js'
 import { DESCRIPTION, PROMPT } from './prompt.js'
 import { stripUntrustedControl } from './stripUntrusted.js'
@@ -197,7 +198,7 @@ const STORE_REGEX_STRING = '^(?!\\.)[^/\\\\:\\x00]{1,255}$'
 
 const inputSchema = lazySchema(() =>
   z.strictObject({
-    action: z.enum(['list_stores', 'list_entries', 'fetch']),
+    action: z.enum(['list_stores', 'list_entries', 'fetch', 'recall']),
     store: z
       .string()
       .regex(new RegExp(STORE_REGEX_STRING))
@@ -225,9 +226,16 @@ type Input = z.infer<InputSchema>
 
 const outputSchema = lazySchema(() =>
   z.object({
-    action: z.enum(['list_stores', 'list_entries', 'fetch']),
+    action: z.enum(['list_stores', 'list_entries', 'fetch', 'recall']),
     stores: z.array(z.string()).optional(),
     entries: z.array(z.string()).optional(),
+    layers: z
+      .object({
+        l3: z.array(z.string()).optional(),
+        l2: z.array(z.string()).optional(),
+        l1: z.array(z.string()).optional(),
+      })
+      .optional(),
     store: z.string().optional(),
     key: z.string().optional(),
     value: z.string().optional(),
@@ -369,7 +377,7 @@ export const LocalMemoryRecallTool = buildTool({
       }
     }
 
-    // list / preview always allow.
+    // list / preview / recall always allow.
     // preview_only !== false → undefined and true both treated as preview.
     if (input.action !== 'fetch' || input.preview_only !== false) {
       return { behavior: 'allow', updatedInput: input }
@@ -453,6 +461,44 @@ export const LocalMemoryRecallTool = buildTool({
           entries: list,
         }
         if (dirTruncated || byteTruncated) out.truncated = true
+        return { data: out }
+      }
+
+      // recall — cross-store layered memory index (L3 persona > L2 scenario > L1 facts)
+      if (input.action === 'recall') {
+        const LAYER_STORES = [
+          { layer: 'l3' as const, store: 'ccz-l3' },
+          { layer: 'l2' as const, store: 'ccz-l2' },
+          { layer: 'l1' as const, store: 'ccz-l1' },
+        ]
+        const layers: Record<string, string[]> = {}
+        let totalBytes = 0
+        let anyTruncated = false
+
+        for (const { layer, store } of LAYER_STORES) {
+          const { entries: bounded, truncated: dirTruncated } =
+            listEntriesBounded(store, 256)
+          const items: string[] = []
+          for (const key of bounded) {
+            const preview = getEntryBounded(store, key, PREVIEW_CAP_BYTES + 16)
+            if (!preview) continue
+            const stripped = stripUntrustedControl(preview.value)
+            const { value: capped } = truncateUtf8(stripped, PREVIEW_CAP_BYTES)
+            const line = `${key}: ${capped.split('\n')[0]?.slice(0, 120) ?? ''}`
+            const lineBytes = Buffer.byteLength(line, 'utf8') + 1
+            if (totalBytes + lineBytes > RECALL_INDEX_CAP_BYTES) {
+              anyTruncated = true
+              break
+            }
+            items.push(line)
+            totalBytes += lineBytes
+          }
+          if (items.length > 0) layers[layer] = items
+          if (dirTruncated) anyTruncated = true
+        }
+
+        const out: Output = { action: 'recall', layers }
+        if (anyTruncated) out.truncated = true
         return { data: out }
       }
 

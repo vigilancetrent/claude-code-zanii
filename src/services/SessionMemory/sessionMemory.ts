@@ -42,6 +42,7 @@ import { asSystemPrompt } from '../../utils/systemPromptType.js'
 import { getTokenUsage, tokenCountWithEstimation } from '../../utils/tokens.js'
 import { logEvent } from '../analytics/index.js'
 import { isAutoCompactEnabled } from '../compact/autoCompact.js'
+import { zaniiRecordMemoryWrite } from '../../utils/zaniiAgent.js'
 import {
   buildSessionMemoryUpdatePrompt,
   loadSessionMemoryTemplate,
@@ -49,6 +50,7 @@ import {
 import {
   DEFAULT_SESSION_MEMORY_CONFIG,
   getSessionMemoryConfig,
+  getSessionMemoryContent,
   getToolCallsBetweenUpdates,
   hasMetInitializationThreshold,
   hasMetUpdateThreshold,
@@ -353,6 +355,21 @@ const extractSessionMemory = sequential(async function (
   // Update lastSummarizedMessageId after successful completion
   updateLastSummarizedMessageIdIfSafe(messages)
 
+  // Record Zanii receipt for memory provenance (fire-and-forget)
+  zaniiRecordMemoryWrite('session', memoryPath, currentMemory, 'session')
+
+  // Distill layered cross-session memories from the updated session summary.
+  // Re-read the file since the forked agent may have edited it.
+  try {
+    const { distillSessionMemory } = await import('./distillation.js')
+    const updatedContent = await getSessionMemoryContent()
+    if (updatedContent) {
+      distillSessionMemory(updatedContent)
+    }
+  } catch {
+    // distillation failure should not block extraction
+  }
+
   markExtractionCompleted()
 })
 
@@ -447,6 +464,20 @@ export async function manuallyExtractSessionMemory(
 
     // Update lastSummarizedMessageId after successful completion
     updateLastSummarizedMessageIdIfSafe(messages)
+
+    // Record Zanii receipt for memory provenance (fire-and-forget)
+    zaniiRecordMemoryWrite('session', memoryPath, currentMemory, 'session')
+
+    // Distill layered cross-session memories from the updated session summary
+    try {
+      const { distillSessionMemory } = await import('./distillation.js')
+      const updatedContent = await getSessionMemoryContent()
+      if (updatedContent) {
+        distillSessionMemory(updatedContent)
+      }
+    } catch {
+      // distillation failure should not block extraction
+    }
 
     return { success: true, memoryPath }
   } catch (error) {

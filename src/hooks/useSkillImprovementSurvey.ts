@@ -80,6 +80,15 @@ export function useSkillImprovementSurvey(setMessages: SetMessages): {
               ),
             ])
           },
+          err => {
+            setMessages(prev => [
+              ...prev,
+              createSystemMessage(
+                `Failed to apply skill improvement: ${err instanceof Error ? err.message : err}`,
+                'suggestion',
+              ),
+            ])
+          },
         )
       }
 

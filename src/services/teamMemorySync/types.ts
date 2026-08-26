@@ -20,6 +20,17 @@ export const TeamMemoryContentSchema = lazySchema(() =>
     // anthropic/anthropic#283027. Optional for forward-compat with older
     // server deployments; empty map when entries is empty.
     entryChecksums: z.record(z.string(), z.string()).optional(),
+    // Per-entry role metadata. Keys match entry keys. Values contain
+    // optional roles array and agent binding for role-based loadouts.
+    meta: z
+      .record(
+        z.string(),
+        z.object({
+          roles: z.array(z.string()).optional(),
+          agent: z.string().optional(),
+        }),
+      )
+      .optional(),
   }),
 )
 

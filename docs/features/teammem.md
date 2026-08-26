@@ -1,7 +1,7 @@
 # TEAMMEM — 团队共享记忆
 
 > Feature Flag: `FEATURE_TEAMMEM=1`
-> 实现状态：完整可用（需要 Anthropic OAuth + GitHub remote）
+> 实现状态：完整可用（需要 Anthropic OAuth + GitHub remote）+ Role-based Loadouts
 > 引用数：51
 
 ## 一、功能概述
@@ -162,6 +162,58 @@ FEATURE_TEAMMEM=1 bun run dev
 | `src/services/teamMemorySync/index.ts` | 1257 | 核心同步逻辑（pull/push/sync） |
 | `src/services/teamMemorySync/watcher.ts` | — | 文件监视 + 自动同步触发 |
 | `src/services/teamMemorySync/secretScanner.ts` | — | gitleaks 密钥扫描 |
-| `src/services/teamMemorySync/types.ts` | — | Zod schema + 类型定义 |
+| `src/services/teamMemorySync/types.ts` | — | Zod schema + 类型定义（含 `meta` 角色元数据） |
 | `src/services/teamMemorySync/teamMemSecretGuard.ts` | — | 密钥防护辅助 |
 | `src/memdir/teamMemPaths.ts` | — | 路径验证 + 目录管理 |
+
+## 八、Role-based Loadouts（Phase 3.2）
+
+TEAMMEM 支持基于角色的记忆过滤，不同 agent 只能看到属于自己角色的记忆条目。
+
+### 启用方式
+
+```sh
+# 设置 agent 角色
+CCZ_TEAMMEM_AGENT_ROLE=backend ccz
+```
+
+### 条目标记
+
+在 team memory 文件中添加 YAML frontmatter：
+
+```markdown
+---
+roles: [backend, infra]
+agent: build-agent
+---
+
+# Deployment Runbook
+```
+
+服务端响应中的 `meta` 字段存储逐条目的角色元数据：
+
+```json
+{
+  "entries": { "runbook.md": "..." },
+  "meta": {
+    "runbook.md": { "roles": ["backend", "infra"] }
+  }
+}
+```
+
+### 过滤规则
+
+| Agent 角色 | Entry 角色 | 可见？ |
+|---|---|---|
+| (空) | 任意 | ✅ — 无过滤 |
+| `backend` | (无) | ✅ — 无角色 = 对所有人可见 |
+| `backend` | `[backend, infra]` | ✅ — 匹配 |
+| `backend` | `[frontend]` | ❌ — 不匹配 |
+
+### 向后兼容
+
+- 未设置 `CCZ_TEAMMEM_AGENT_ROLE` → 看到所有条目（默认）
+- 条目无 `roles` 元数据 → 对所有人可见
+- 服务端不发送 `meta` 字段 → 不应用过滤
+
+详见 [docs/features/team-loadouts.md](team-loadouts.md)。

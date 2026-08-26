@@ -1,8 +1,17 @@
-import { lstat, realpath } from 'fs/promises'
+import {
+  lstat,
+  realpath,
+  readFile,
+  writeFile,
+  mkdir,
+  rename,
+} from 'fs/promises'
 import { dirname, join, resolve, sep } from 'path'
+import { existsSync } from 'fs'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growthbook.js'
 import { getErrnoCode } from '../utils/errors.js'
 import { getAutoMemPath, isAutoMemoryEnabled } from './paths.js'
+import { logError } from '../utils/log.js'
 
 /**
  * Error thrown when a path validation detects a traversal or injection attempt.
@@ -289,4 +298,216 @@ export async function validateTeamMemKey(relativeKey: string): Promise<string> {
  */
 export function isTeamMemFile(filePath: string): boolean {
   return isTeamMemoryEnabled() && isTeamMemPath(filePath)
+}
+
+// ── Agent Registry & ACL ─────────────────────────────────────────────────────
+
+export type AgentRole = 'admin' | 'editor' | 'viewer'
+
+export type AgentConfig = {
+  id: string
+  name: string
+  role: AgentRole
+  readScopes: string[]
+  writeScopes: string[]
+  maxEntries?: number
+}
+
+type AgentRegistryData = {
+  version: 1
+  agents: Record<string, AgentConfig>
+}
+
+const agentRegistry = new Map<string, AgentConfig>()
+
+function getRegistryPath(): string {
+  const home = process.env.USERPROFILE || process.env.HOME || '/tmp'
+  return join(home, '.zaniicode', 'agent-registry.json')
+}
+
+async function loadRegistry(): Promise<void> {
+  try {
+    const raw = await readFile(getRegistryPath(), 'utf-8')
+    const data = JSON.parse(raw) as AgentRegistryData
+    if (data.version !== 1) return
+    for (const [id, config] of Object.entries(data.agents)) {
+      agentRegistry.set(id, config)
+    }
+  } catch (e: unknown) {
+    if (existsSync(getRegistryPath())) {
+      logError(
+        `Agent registry file is corrupt, resetting: ${e instanceof Error ? e.message : e}`,
+      )
+    }
+  }
+}
+
+async function saveRegistry(): Promise<void> {
+  try {
+    const registryDir = dirname(getRegistryPath())
+    await mkdir(registryDir, { recursive: true })
+    const data: AgentRegistryData = {
+      version: 1,
+      agents: Object.fromEntries(agentRegistry),
+    }
+    const registryPath = getRegistryPath()
+    const tmpPath = registryPath + '.tmp'
+    await writeFile(tmpPath, JSON.stringify(data, null, 2), 'utf-8')
+    await rename(tmpPath, registryPath)
+  } catch {
+    // best-effort
+  }
+}
+
+/**
+ * Register an agent with its role and access scopes.
+ * Persists to disk automatically.
+ */
+export async function registerAgent(config: AgentConfig): Promise<void> {
+  agentRegistry.set(config.id, config)
+  await saveRegistry()
+}
+
+/**
+ * Get an agent's config by ID.
+ */
+export function getAgentConfig(agentId: string): AgentConfig | undefined {
+  return agentRegistry.get(agentId)
+}
+
+/**
+ * Get the current agent's ID from env or config.
+ */
+export function getCurrentAgentId(): string {
+  return process.env.CCZ_TEAMMEM_AGENT_ID ?? ''
+}
+
+/**
+ * Get the current agent's role for team memory filtering.
+ */
+export function getTeamMemAgentRole(): string {
+  return process.env.CCZ_TEAMMEM_AGENT_ROLE ?? ''
+}
+
+/**
+ * Get the current agent's full config.
+ */
+export function getCurrentAgentConfig(): AgentConfig | undefined {
+  const id = getCurrentAgentId()
+  if (!id) return undefined
+  return agentRegistry.get(id)
+}
+
+/**
+ * Check if an agent has write access to a given scope.
+ */
+export function canAgentWrite(agentId: string, scope: string): boolean {
+  const config = agentRegistry.get(agentId)
+  if (!config) return true
+  if (config.role === 'admin') return true
+  return config.writeScopes.includes(scope) || config.writeScopes.includes('*')
+}
+
+/**
+ * Check if an agent has read access to a given scope.
+ */
+export function canAgentRead(agentId: string, scope: string): boolean {
+  const config = agentRegistry.get(agentId)
+  if (!config) return true
+  return config.readScopes.includes(scope) || config.readScopes.includes('*')
+}
+
+/**
+ * Check if an entry is accessible to the current agent based on its roles.
+ */
+export function isEntryVisibleToAgent(
+  entryRoles: string[] | undefined,
+  agentRole: string,
+): boolean {
+  if (!agentRole) return true
+  if (!entryRoles || entryRoles.length === 0) return true
+  return entryRoles.includes(agentRole)
+}
+
+/**
+ * Filter entries by role. Returns only entries the agent can see.
+ */
+export function filterEntriesByRole<T>(
+  entries: Record<string, T>,
+  meta: Record<string, { roles?: string[] }> | undefined,
+): Record<string, T> {
+  const agentRole = getTeamMemAgentRole()
+  if (!agentRole) return entries
+
+  const filtered: Record<string, T> = {}
+  for (const [key, value] of Object.entries(entries)) {
+    const entryMeta = meta?.[key]
+    if (isEntryVisibleToAgent(entryMeta?.roles, agentRole)) {
+      filtered[key] = value
+    }
+  }
+  return filtered
+}
+
+/**
+ * Filter entries by ACL (agent scopes + role + maxEntries). Returns only entries the agent can see.
+ * Combines scope-based, role-based, and budget-based filtering.
+ */
+export function filterEntriesByACL<T>(
+  entries: Record<string, T>,
+  meta: Record<string, { roles?: string[]; scope?: string }> | undefined,
+): Record<string, T> {
+  const agentId = getCurrentAgentId()
+  const agentRole = getTeamMemAgentRole()
+  const agentConfig = agentId ? agentRegistry.get(agentId) : undefined
+
+  if (!agentId && !agentRole) return entries
+
+  const filtered: Record<string, T> = {}
+  for (const [key, value] of Object.entries(entries)) {
+    const entryMeta = meta?.[key]
+    const scope = entryMeta?.scope ?? '*'
+
+    // Scope check
+    if (agentConfig && !canAgentRead(agentId, scope)) continue
+
+    // Role check
+    if (agentRole && !isEntryVisibleToAgent(entryMeta?.roles, agentRole))
+      continue
+
+    filtered[key] = value
+  }
+
+  // Enforce maxEntries budget after ACL — apply on visible entries only
+  const maxEntries = agentConfig?.maxEntries
+  if (maxEntries && Object.keys(filtered).length > maxEntries) {
+    const sorted = Object.keys(filtered).sort()
+    for (const key of sorted.slice(maxEntries)) {
+      delete filtered[key]
+    }
+  }
+
+  return filtered
+}
+
+/**
+ * List all registered agents.
+ */
+export function listAgents(): AgentConfig[] {
+  return [...agentRegistry.values()]
+}
+
+/**
+ * Clear the agent registry.
+ */
+export async function clearAgentRegistry(): Promise<void> {
+  agentRegistry.clear()
+  await saveRegistry()
+}
+
+/**
+ * Load the agent registry from disk. Call on startup.
+ */
+export async function initAgentRegistry(): Promise<void> {
+  await loadRegistry()
 }

@@ -457,6 +457,7 @@ export async function loadMemoryPrompt(): Promise<string | null> {
       // out from under the auto dir, add a second ensureMemoryDirExists call
       // for autoDir here.
       await ensureMemoryDirExists(teamDir)
+      await teamMemPaths!.initAgentRegistry()
       logMemoryDirCounts(autoDir, {
         memory_type:
           'auto' as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,

@@ -19,6 +19,9 @@ import { context, contextNonInteractive } from './commands/context/index.js'
 import diff from './commands/diff/index.js'
 import doctor from './commands/doctor/index.js'
 import memory from './commands/memory/index.js'
+import memoryAudit from './commands/memory-audit/index.js'
+import memoryList from './commands/memory-list/index.js'
+import memoryClear from './commands/memory-clear/index.js'
 import mode from './commands/mode/index.js'
 import help from './commands/help/index.js'
 import ide from './commands/ide/index.js'
@@ -191,6 +194,7 @@ import version from './commands/version.js'
 import summary from './commands/summary/index.js'
 import recap from './commands/recap/index.js'
 import skillLearning from './commands/skill-learning/index.js'
+import skillPromote from './commands/skill-promote/index.js'
 import skillSearch from './commands/skill-search/index.js'
 import {
   resetLimits,
@@ -339,6 +343,9 @@ const COMMANDS = memoize((): Command[] => [
   installSlackApp,
   mcp,
   memory,
+  memoryAudit,
+  memoryList,
+  memoryClear,
   mobile,
   mode,
   model,
@@ -412,6 +419,7 @@ const COMMANDS = memoize((): Command[] => [
   summary,
   recap,
   skillLearning,
+  skillPromote,
   skillSearch,
   autofixPr,
   commit,

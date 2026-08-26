@@ -265,7 +265,7 @@ export function deleteEntry(store: string, key: string): boolean {
   validateKey(key)
   const entryPath = getEntryPath(store, key)
   if (!existsSync(entryPath)) return false
-  rmSync(entryPath)
+  rmSync(entryPath, { force: true })
   return true
 }
 

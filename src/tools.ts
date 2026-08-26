@@ -80,6 +80,8 @@ const getSendMessageTool = () =>
 /* eslint-enable @typescript-eslint/no-require-imports */
 import { AskUserQuestionTool } from '@claude-code-best/builtin-tools/tools/AskUserQuestionTool/AskUserQuestionTool.js'
 import { LSPTool } from '@claude-code-best/builtin-tools/tools/LSPTool/LSPTool.js'
+import { ImpactAnalysisTool } from '@claude-code-best/builtin-tools/tools/ImpactAnalysisTool/ImpactAnalysisTool.js'
+import { WikiSearchTool } from '@claude-code-best/builtin-tools/tools/WikiSearchTool/WikiSearchTool.js'
 import { ListMcpResourcesTool } from '@claude-code-best/builtin-tools/tools/ListMcpResourcesTool/ListMcpResourcesTool.js'
 import { ReadMcpResourceTool } from '@claude-code-best/builtin-tools/tools/ReadMcpResourceTool/ReadMcpResourceTool.js'
 import { SearchExtraToolsTool } from '@claude-code-best/builtin-tools/tools/SearchExtraToolsTool/SearchExtraToolsTool.js'
@@ -250,7 +252,10 @@ export function getAllBaseTools(): Tools {
     ...(OverflowTestTool ? [OverflowTestTool] : []),
     ...(CtxInspectTool ? [CtxInspectTool] : []),
     ...(TerminalCaptureTool ? [TerminalCaptureTool] : []),
-    ...(isEnvTruthy(process.env.ENABLE_LSP_TOOL) ? [LSPTool] : []),
+    ...(isEnvTruthy(process.env.ENABLE_LSP_TOOL)
+      ? [LSPTool, ImpactAnalysisTool]
+      : []),
+    WikiSearchTool,
     ...(isWorktreeModeEnabled() ? [EnterWorktreeTool, ExitWorktreeTool] : []),
     getSendMessageTool(),
     ...(ListPeersTool ? [ListPeersTool] : []),

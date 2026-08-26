@@ -10,3 +10,5 @@ export const FETCH_CAP_BYTES = 50 * 1024
 export const LIST_STORES_CAP_BYTES = 4 * 1024
 /** list_entries cap per store. */
 export const LIST_ENTRIES_CAP_BYTES = 8 * 1024
+/** recall action cross-store index cap. */
+export const RECALL_INDEX_CAP_BYTES = 6 * 1024
