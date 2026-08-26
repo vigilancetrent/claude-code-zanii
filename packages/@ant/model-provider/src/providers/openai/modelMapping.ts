@@ -35,7 +35,9 @@ function getModelFamily(model: string): 'haiku' | 'sonnet' | 'opus' | null {
  */
 export function resolveOpenAIModel(anthropicModel: string): string {
   if (process.env.OPENAI_MODEL) {
-    return process.env.OPENAI_MODEL
+    // Strip the [1m] context-window flag — it's a client-side marker consumed
+    // by getContextWindowForModel(), never a valid provider model id.
+    return process.env.OPENAI_MODEL.replace(/\[1m\]$/i, '')
   }
 
   const cleanModel = anthropicModel.replace(/\[1m\]$/, '')
