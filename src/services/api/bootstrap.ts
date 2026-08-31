@@ -15,6 +15,7 @@ import { logError } from '../../utils/log.js'
 import { getAPIProvider } from '../../utils/model/providers.js'
 import { isEssentialTrafficOnly } from '../../utils/privacyLevel.js'
 import { getClaudeCodeUserAgent } from '../../utils/userAgent.js'
+import type { ModelOption } from '../../utils/model/modelOptions.js'
 
 const bootstrapResponseSchema = lazySchema(() =>
   z.object({
@@ -109,15 +110,64 @@ async function fetchBootstrapAPI(): Promise<BootstrapResponse | null> {
 }
 
 /**
+ * Fetch available models from an OpenAI-compatible endpoint and map them into
+ * ModelOptions so the /model picker lists the server's models automatically.
+ * Returns null on failure (caller keeps the previous cache).
+ */
+async function fetchOpenAICompatibleModelOptions(): Promise<
+  ModelOption[] | null
+> {
+  const baseUrl = (
+    process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1'
+  ).replace(/\/+$/, '')
+  const apiKey = process.env.OPENAI_API_KEY
+  try {
+    const response = await axios.get<{ data?: Array<{ id?: unknown }> }>(
+      `${baseUrl}/models`,
+      {
+        headers: {
+          'User-Agent': getClaudeCodeUserAgent(),
+          Accept: 'application/json',
+          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
+        },
+        timeout: 5000,
+      },
+    )
+    const models = response.data?.data ?? []
+    return models
+      .filter((m): m is { id: string } => typeof m?.id === 'string')
+      .map(m => ({
+        value: m.id,
+        label: m.id,
+        description: 'Available on your configured model server',
+      }))
+  } catch (error) {
+    logForDebugging(
+      `[Bootstrap] OpenAI-compat /models fetch failed: ${axios.isAxiosError(error) ? (error.response?.status ?? error.code) : 'unknown'}`,
+    )
+    return null
+  }
+}
+
+/**
  * Fetch bootstrap data from the API and persist to disk cache.
  */
 export async function fetchBootstrapData(): Promise<void> {
   try {
-    const response = await fetchBootstrapAPI()
-    if (!response) return
+    let clientData: Record<string, unknown> | null = null
+    let additionalModelOptions: ModelOption[] | null = null
 
-    const clientData = response.client_data ?? null
-    const additionalModelOptions = response.additional_model_options ?? []
+    if (getAPIProvider() === 'openai') {
+      // OpenAI-compatible provider: list models straight from the server
+      // instead of Anthropic's bootstrap endpoint.
+      additionalModelOptions = await fetchOpenAICompatibleModelOptions()
+      if (!additionalModelOptions) return
+    } else {
+      const response = await fetchBootstrapAPI()
+      if (!response) return
+      clientData = response.client_data ?? null
+      additionalModelOptions = response.additional_model_options ?? []
+    }
 
     // Only persist if data actually changed — avoids a config write on every startup.
     const config = getGlobalConfig()
