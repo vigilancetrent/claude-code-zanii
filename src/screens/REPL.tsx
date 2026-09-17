@@ -284,7 +284,8 @@ import type { MCPServerConnection } from '../services/mcp/types.js';
 import type { ScopedMcpServerConfig } from '../services/mcp/types.js';
 import { randomUUID, type UUID } from 'crypto';
 import { processSessionStartHooks } from '../utils/sessionStart.js';
-import { executeSessionEndHooks, getSessionEndHookTimeoutMs } from '../utils/hooks.js';
+import { executeInterruptHooks, executeSessionEndHooks, getSessionEndHookTimeoutMs } from '../utils/hooks.js';
+import { registerHookEventHandler, setAllHookEventsEnabled } from '../utils/hooks/hookEvents.js';
 import { type IDESelection, useIdeSelection } from '../hooks/useIdeSelection.js';
 import { getTools, assembleToolPool } from '../tools.js';
 import type { AgentDefinition } from '@claude-code-best/builtin-tools/tools/AgentTool/loadAgentsDir.js';
@@ -292,6 +293,10 @@ import { resolveAgentTools } from '@claude-code-best/builtin-tools/tools/AgentTo
 import { resumeAgentBackground } from '@claude-code-best/builtin-tools/tools/AgentTool/resumeAgent.js';
 import { useMainLoopModel } from '../hooks/useMainLoopModel.js';
 import { useAppState, useSetAppState, useAppStateStore } from '../state/AppState.js';
+import { focusMessages } from '../utils/focusView.js';
+import { onTranscriptSearchRequest } from '../utils/transcriptSearchRequest.js';
+import { abortSessionStartHooks } from '../utils/sessionStart.js';
+import { useKeybinding } from '../keybindings/useKeybinding.js';
 import type { ContentBlockParam, ContentBlock, ImageBlockParam } from '@anthropic-ai/sdk/resources/messages.mjs';
 import type { ProcessUserInputContext } from '../utils/processUserInput/processUserInput.js';
 import type { PastedContent } from '../utils/config.js';
@@ -1808,6 +1813,64 @@ export function REPL({
   const [spinnerMessage, setSpinnerMessage] = useState<string | null>(null);
   const [spinnerColor, setSpinnerColor] = useState<keyof Theme | null>(null);
   const [spinnerShimmerColor, setSpinnerShimmerColor] = useState<keyof Theme | null>(null);
+
+  // Hook progress row: while a settings/plugin hook runs, the spinner shows
+  // "Running <event> hook <name> (Ns)…" so a slow hook doesn't look like a
+  // hung model. Only clears the message it set itself (compaction shares it).
+  const [sessionStartHookRunning, setSessionStartHookRunning] = useState(false);
+  // Esc while a SessionStart hook runs at startup (no query in flight, so
+  // useCancelRequest's Esc is inactive) aborts the hook and moves on.
+  useKeybinding(
+    'chat:cancel',
+    () => {
+      if (abortSessionStartHooks()) {
+        setSessionStartHookRunning(false);
+        setSpinnerMessage(null);
+      }
+    },
+    { context: 'Chat', isActive: sessionStartHookRunning && !abortController },
+  );
+  useEffect(() => {
+    const running = new Map<string, { label: string; start: number }>();
+    let ownsMessage = false;
+    let ticker: ReturnType<typeof setInterval> | null = null;
+    const render = () => {
+      const first = running.values().next().value;
+      if (!first) {
+        if (ownsMessage) {
+          setSpinnerMessage(null);
+          ownsMessage = false;
+        }
+        if (ticker) {
+          clearInterval(ticker);
+          ticker = null;
+        }
+        return;
+      }
+      const secs = Math.floor((Date.now() - first.start) / 1000);
+      const more = running.size > 1 ? ` +${running.size - 1}` : '';
+      setSpinnerMessage(`Running ${first.label}${more} (${secs}s)…`);
+      ownsMessage = true;
+      if (!ticker) ticker = setInterval(render, 1000);
+    };
+    setAllHookEventsEnabled(true);
+    registerHookEventHandler(event => {
+      if (event.type === 'started') {
+        running.set(event.hookId, { label: `${event.hookEvent} hook ${event.hookName}`, start: Date.now() });
+        if (event.hookEvent === 'SessionStart') setSessionStartHookRunning(true);
+        render();
+      } else if (event.type === 'response') {
+        if (running.delete(event.hookId)) render();
+        if (![...running.values()].some(r => r.label.startsWith('SessionStart '))) {
+          setSessionStartHookRunning(false);
+        }
+      }
+    });
+    return () => {
+      registerHookEventHandler(null);
+      if (ticker) clearInterval(ticker);
+    };
+  }, []);
   const [isMessageSelectorVisible, setIsMessageSelectorVisible] = useState(false);
   const [messageSelectorPreselect, setMessageSelectorPreselect] = useState<UserMessage | undefined>(undefined);
   const [showCostDialog, setShowCostDialog] = useState(false);
@@ -2594,6 +2657,13 @@ export function REPL({
     }
     setWasAborted(true);
 
+    // Interrupt hook: observers (status lines, loggers) learn the user cut a
+    // turn short. Not awaited — cancel must stay instant.
+    const wasQueryInFlight = queryGuard.getSnapshot();
+    void executeInterruptHooks(wasQueryInFlight).catch(error =>
+      logForDebugging(`[onCancel] Interrupt hook failed: ${error}`, { level: 'error' }),
+    );
+
     queryGuard.forceEnd();
     skipIdleCheckRef.current = false;
 
@@ -3019,6 +3089,10 @@ export function REPL({
               setSpinnerColor(null);
               setSpinnerShimmerColor(null);
               compactProgressActiveRef.current = false;
+              break;
+            case 'output_limit_resume':
+              // Cleared with the rest of the loading state at turn end.
+              setSpinnerMessage('Picking the thought back up');
               break;
           }
         },
@@ -5328,6 +5402,14 @@ export function REPL({
   // working after Enter dismisses the bar (less semantics).
   const jumpRef = useRef<JumpHandle | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  // Vim NORMAL `/` in the prompt → transcript screen with the search bar open.
+  useEffect(() => {
+    onTranscriptSearchRequest(() => {
+      setScreen('transcript');
+      setSearchOpen(true);
+    });
+    return () => onTranscriptSearchRequest(null);
+  }, []);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchCount, setSearchCount] = useState(0);
   const [searchCurrent, setSearchCurrent] = useState(0);
@@ -5608,11 +5690,13 @@ export function REPL({
     });
     return [...stripped.slice(0, insertAt), synthetic, ...stripped.slice(insertAt)];
   }, [viewedAgentTask, rawAgentMessages]);
-  const displayedMessages = viewedAgentTask
+  const focusMode = useAppState(s => s.focusMode);
+  const unfocusedMessages = viewedAgentTask
     ? (displayedAgentMessages ?? [])
     : usesSyncMessages
       ? messages
       : deferredMessages;
+  const displayedMessages = focusMode ? focusMessages(unfocusedMessages) : unfocusedMessages;
 
   if (screen === 'transcript') {
     // Virtual scroll replaces the 30-message cap: everything is scrollable
