@@ -60,8 +60,14 @@ export type SpinnerAnimationRowProps = {
 
   // Thinking (state owned by parent, mode-dependent)
   thinkingStatus: 'thinking' | number | null;
+  /** Wall-clock ms when the current thinking phase started; drives "deep in thought". */
+  thinkingStartedAt?: number | null;
   effortSuffix: string;
 };
+
+// After this much continuous thinking the label changes so a long pause
+// reads as deliberate rather than stuck (upstream 2.1.271).
+const DEEP_IN_THOUGHT_AFTER_MS = 45_000;
 
 /**
  * The 50ms-animated portion of SpinnerWithVerb. Owns useAnimationFrame(50)
@@ -94,6 +100,7 @@ export function SpinnerAnimationRow({
   foregroundedTeammate,
   leaderIsIdle = false,
   thinkingStatus,
+  thinkingStartedAt,
   effortSuffix,
 }: SpinnerAnimationRowProps): React.ReactNode {
   const [viewportRef, time] = useAnimationFrame(reducedMotion ? null : 50);
@@ -183,9 +190,11 @@ export function SpinnerAnimationRow({
   const tokensWidth = stringWidth(tokensText);
 
   // === Thinking text (may shrink to fit) ===
+  const deepInThought =
+    thinkingStatus === 'thinking' && thinkingStartedAt != null && time - thinkingStartedAt > DEEP_IN_THOUGHT_AFTER_MS;
   let thinkingText =
     thinkingStatus === 'thinking'
-      ? `thinking${effortSuffix}`
+      ? `${deepInThought ? 'deep in thought' : 'thinking'}${effortSuffix}`
       : typeof thinkingStatus === 'number'
         ? `thought for ${Math.max(1, Math.round(thinkingStatus / 1000))}s`
         : null;

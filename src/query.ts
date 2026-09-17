@@ -1514,6 +1514,10 @@ async function* queryLoop(
               `Pick up mid-thought if that is where the cut happened. Break remaining work into smaller pieces.`,
             isMeta: true,
           })
+          toolUseContext.onCompactProgress?.({
+            type: 'output_limit_resume',
+            attempt: maxOutputTokensRecoveryCount + 1,
+          })
 
           const next: State = {
             messages: [
