@@ -1,4 +1,5 @@
 import { feature } from 'bun:bundle'
+import { logForDebugging } from 'src/utils/debug.js'
 import { shouldAutoEnableClaudeInChrome } from 'src/utils/claudeInChrome/setup.js'
 import { registerBatchSkill } from './batch.js'
 import { registerClaudeInChromeSkill } from './claudeInChrome.js'
@@ -18,6 +19,11 @@ import { registerUpdateConfigSkill } from './updateConfig.js'
 import { registerVerifySkill } from './verify.js'
 import { registerPromptAuditSkill } from './promptAudit.js'
 import { registerDeepResearchSkill } from './deepResearch.js'
+import { registerHarnessImproveSkill } from './harnessImprove.js'
+import {
+  registerRunSkill,
+  registerRunSkillGeneratorSkill,
+} from './runSkillGenerator.js'
 
 /**
  * Initialize all bundled skills.
@@ -29,6 +35,16 @@ import { registerDeepResearchSkill } from './deepResearch.js'
  * 3. Import and call that function here
  */
 export function initBundledSkills(): void {
+  try {
+    initBundledSkillsUnsafe()
+  } catch (error) {
+    // A missing or broken bundled skill must degrade to "that skill is
+    // absent", never to a hung or dead startup.
+    logForDebugging(`[bundledSkills] init failed: ${error}`, { level: 'error' })
+  }
+}
+
+function initBundledSkillsUnsafe(): void {
   registerUpdateConfigSkill()
   registerKeybindingsSkill()
   registerVerifySkill()
@@ -73,9 +89,8 @@ export function initBundledSkills(): void {
     registerClaudeInChromeSkill()
   }
   if (feature('RUN_SKILL_GENERATOR')) {
-    /* eslint-disable @typescript-eslint/no-require-imports */
-    const { registerRunSkillGeneratorSkill } = require('./runSkillGenerator.js')
-    /* eslint-enable @typescript-eslint/no-require-imports */
+    registerRunSkill()
     registerRunSkillGeneratorSkill()
   }
+  registerHarnessImproveSkill()
 }

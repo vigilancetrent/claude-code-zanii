@@ -28,6 +28,10 @@ Everything below works on every provider CCZ supports (Anthropic, Bedrock, Verte
 | `/import cursor\|codex\|copilot [--dry-run]` | `.cursor/rules`, `.cursorrules`, `AGENTS.md`, Copilot instructions → `@imports` in `CLAUDE.md`; Codex `config.toml` MCP servers → `.mcp.json` |
 | `/prompt-audit` | Skill: finds dead paths, contradictions and duplicates across CLAUDE.md / rules / skills / agents |
 | `/deep-research <question>` | Skill: parallel web-search workflow → cited report |
+| `/harness-improve [focus]` | Skill (v2.14): mines the last 20 sessions of this project — failing commands, permission denials, 3× identical failures, your corrections, `/undo` — and proposes ≤3 bounded edits to `CLAUDE.md` / hooks / permissions / skills, each with evidence and a falsifiable prediction, logged to `.claude/harness-ledger.md` and re-checked next run. Asks before applying; never touches code |
+| `/run-skill-generator` | Skill (v2.14): reads package.json / Makefile / Dockerfile / CI, launches once, writes `.claude/skills/run/SKILL.md` (build · start · ready-when · reach · verify · stop) |
+| `/run [request]` | Skill (v2.14): launch and drive the app using that recipe |
+| `/verify [request]` | Skill (v2.14, was ant-only): start the app, walk the golden path + edge inputs, report a PASS/FAIL/NOT VERIFIED table with real commands and output |
 | `/export file.md` / `file.json` | Markdown export with edits rendered as diffs, or the raw transcript |
 | `claude plugin install\|uninstall\|enable\|disable\|update … --json` | One JSON result object for scripting |
 

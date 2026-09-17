@@ -96,6 +96,7 @@ export const DEFAULT_BUILD_FEATURES = [
   'UNATTENDED_RETRY', // persistent 429/529 retry with keep-alive; still needs CLAUDE_CODE_UNATTENDED_RETRY=1 at runtime
   'POWERSHELL_AUTO_MODE', // auto-mode classifier gets the PowerShell persistence/registry rules (Windows)
   'QUICK_SEARCH', // ctrl+shift+f global search / ctrl+shift+p quick open keybindings
+  'RUN_SKILL_GENERATOR', // /run + /run-skill-generator bundled skills (src/skills/bundled/runSkillGenerator.ts)
   'SKILL_IMPROVEMENT', // post-skill hook that proposes skill improvements; runtime-gated by isSkillImprovementEnabled()
   // P3: poor mode
   'POOR', // 穷鬼模式，跳过 extract_memories/prompt_suggestion 减少消耗

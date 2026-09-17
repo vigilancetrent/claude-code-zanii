@@ -127,6 +127,12 @@ Each: `src/commands/<name>/{index.ts,<name>.ts}` following `src/commands/effort/
 - [x] **16.2** Context window auto-detected from the OpenAI-compatible `/v1/models` (`max_model_len` | `meta.n_ctx` | `context_length` | `context_window`); `model_gateway` passes those fields through.
 - [x] **16.3** Repeated-failure loop breaker (3 identical failing tool calls → system reminder).
 
+## Phase 17 — Self-improvement loop + run/verify (v2.14)
+
+- [x] **17.1** `/harness-improve`: `harnessMining.ts` (deterministic counts over the project's last 20 transcripts) + bounded proposal skill with evidence, prediction, ledger (`.claude/harness-ledger.md`).
+- [x] **17.2** `RUN_SKILL_GENERATOR`: `/run` + `/run-skill-generator` written; flag back in `DEFAULT_BUILD_FEATURES`; `initBundledSkills` wrapped so a missing skill can't hang boot.
+- [x] **17.3** `/verify` available to all users; real SKILL.md + examples replace the 8-byte stubs.
+
 ## Explicitly not doing
 
 - Claude 5 model IDs / aliases / pricing (user decision).

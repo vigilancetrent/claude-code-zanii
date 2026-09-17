@@ -1,5 +1,15 @@
 # DEV-LOG
 
+## v2.14.0 自我改进闭环 + /run /verify (2026-09-17)
+
+之前明确放弃的两项（"meta-harness 研究级"、"RUN_SKILL_GENERATOR 文件不存在"）现在都做了，取有界版本：
+- **`/harness-improve`**：`src/utils/harnessMining.ts` 对本项目最近 20 个会话 transcript 做确定性挖掘（按工具+命令前缀的失败次数、权限拒绝、3 次同样调用连续失败、用户纠正语句、`/undo`、中断），报告嵌入 skill prompt；模型只能提出 ≤3 条对 CLAUDE.md / hooks / permissions / skills / `postEditChecks` 的小改动，每条必须带证据 + 可证伪预测，先问再改，记入 `.claude/harness-ledger.md`，下次运行回看预测是否成立。不动代码/测试/CI。
+- **`/run` + `/run-skill-generator`**：`src/skills/bundled/runSkillGenerator.ts`。generator 读 package.json / Makefile / Dockerfile / CI 等推出构建、启动、就绪信号、入口、停止方式，实跑一次后写 `.claude/skills/run/SKILL.md`；`/run` 与 `/verify` 都优先按该文件启动应用。`RUN_SKILL_GENERATOR` 重新加入 `DEFAULT_BUILD_FEATURES`。
+- **`/verify` 对所有用户开放**（此前 `USER_TYPE=ant` 才注册），`verify/SKILL.md` 与 examples 从 8 字节 stub 换成真实流程（启动 → 走黄金路径 → 边界输入 → 停止 → PASS/FAIL/NOT VERIFIED 表）。
+- `initBundledSkills` 整体 try/catch：任何 bundled skill 缺失/抛错都退化为"该 skill 不存在"，不再挂起启动。
+
+---
+
 ## v2.13.0 更聪明的循环 (2026-09-17)
 
 调研见 `docs/harness-gap-research-2026-09.md` §8。CCZ 的规划/验证/记忆/工具披露/护栏已是上游水准；让它在本地模型上"显得笨"的是三个没编译进去的恢复开关和一个错误的上下文窗口假设：

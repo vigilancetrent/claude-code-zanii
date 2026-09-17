@@ -320,12 +320,12 @@ Sources: [Lil'Log — Harness Engineering for Self-Improvement](https://lilianwe
 | Guardrails: auto-mode classifier, sandbox, approval gates, output scanning | ✓; **`POWERSHELL_AUTO_MODE` compiled OUT** — Windows users' auto-mode classifier lacks the PowerShell persistence/registry rules | **fix: enable** |
 | Observability: traces, cost, per-step | Langfuse ✓, OTel ✓, `/cost` (now correct for local models) | ✓ |
 | Second opinion (Amp Oracle) / adaptive reasoning effort | `/advisor` ✓; effort now adapts to what the server accepts (2.12.3) | ✓ |
-| Self-harness / meta-harness (Lil'Log) — agent edits its own harness from failure mining | skill learning proposes skills/commands from observations; no harness-code evolution | out of scope (research-grade) |
+| Self-harness / meta-harness (Lil'Log) — agent edits its own harness from failure mining | skill learning proposes skills/commands from observations; **v2.14: `/harness-improve`** — deterministic transcript mining → ≤3 bounded CLAUDE.md/hooks/permissions edits with evidence + falsifiable prediction + ledger. Bounded on purpose: no code/CI edits, ask before apply | ✓ (bounded) |
 
 **Bottom line:** the loop is already upstream-grade (plan, verify, memory, disclosure, guardrails). What was making CCZ *feel* dumb on local models is three compiled-out recovery flags plus a wrong context-window assumption — the agent literally didn't know how much room it had, and when it ran out it couldn't recover.
 
 ### Plan — Phase 16 (smarter loop)
 
-1. Enable `REACTIVE_COMPACT`, `UNATTENDED_RETRY` (still env-gated), `POWERSHELL_AUTO_MODE`, `QUICK_SEARCH`, `SKILL_IMPROVEMENT` (runtime-gated). (`RUN_SKILL_GENERATOR` needs `src/skills/bundled/runSkillGenerator.ts`, which this fork does not have — left off.)
+1. Enable `REACTIVE_COMPACT`, `UNATTENDED_RETRY` (still env-gated), `POWERSHELL_AUTO_MODE`, `QUICK_SEARCH`, `SKILL_IMPROVEMENT` (runtime-gated). (`RUN_SKILL_GENERATOR`: written in v2.14 — `/run` + `/run-skill-generator`; `/verify` un-gated.)
 2. Context window from the server: `refreshModelCapabilities()` also handles the OpenAI-compatible provider, mapping `max_model_len` / `meta.n_ctx` / `context_length` → `max_input_tokens`; `getContextWindowForModel` trusts it for any size on that provider; `model_gateway` passes backend model metadata through.
 3. Repeated-failure loop breaker: after 3 identical failing tool calls, inject a system reminder ("same call failed 3×; change approach or ask the user") and log it.
