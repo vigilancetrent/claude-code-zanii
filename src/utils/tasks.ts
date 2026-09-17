@@ -130,6 +130,23 @@ async function writeHighWaterMark(
   await writeFile(path, String(value))
 }
 
+/**
+ * Whether the todo/task tracking tools (TodoWrite, TaskCreate/Get/Update/List)
+ * are offered to the model at all. Upstream (2.1.268) stopped sending them to
+ * Claude 5+ — those models track progress natively and the tools only cost
+ * context. Pure heuristic on the model id (no model table): any
+ * `claude-<family>-<major>` with major ≥ 5 opts out. Override with
+ * CLAUDE_CODE_ENABLE_TODO_TOOLS=1 (force on) / =0 (force off).
+ */
+export function areTodoToolsEnabled(model: string): boolean {
+  const override = process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS
+  if (override !== undefined && override !== '') {
+    return isEnvTruthy(override)
+  }
+  const major = /claude-(?:opus|sonnet|haiku|fable)-(\d+)/.exec(model)?.[1]
+  return major === undefined || Number(major) < 5
+}
+
 export function isTodoV2Enabled(): boolean {
   // Force-enable tasks in non-interactive mode (e.g. SDK users who want Task tools over TodoWrite)
   if (isEnvTruthy(process.env.CLAUDE_CODE_ENABLE_TASKS)) {

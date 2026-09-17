@@ -227,7 +227,8 @@ Feature flags control which functionality is enabled at runtime. 代码中统一
 - 连接器: `CONNECTOR_TEXT`, `COMMIT_ATTRIBUTION`, `DIRECT_CONNECT`
 - 实验性: `EXPERIMENTAL_SKILL_SEARCH`, `EXPERIMENTAL_SEARCH_EXTRA_TOOLS`
 - 模式: `POOR`, `SSH_REMOTE`
-- 已禁用: `CONTEXT_COLLAPSE`, `FORK_SUBAGENT`, `UDS_INBOX`, `LAN_PIPES`, `REVIEW_ARTIFACT`, `TEAMMEM`, `SKILL_LEARNING`
+- 权限/分类器: `BASH_CLASSIFIER`, `TREE_SITTER_BASH`（纯 TS bash AST）, `FORK_SUBAGENT`（`/fork` + 隐式 fork，所有 agent 后台运行）
+- 已禁用: `CONTEXT_COLLAPSE`, `UDS_INBOX`, `LAN_PIPES`, `REVIEW_ARTIFACT`, `TEAMMEM`, `SKILL_LEARNING`
 
 **Dev mode 默认**: 全部启用（见 `scripts/dev.ts`）。
 

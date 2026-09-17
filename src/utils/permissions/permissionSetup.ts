@@ -772,6 +772,19 @@ export function initialPermissionModeFromCLI({
     }
   }
 
+  // Nothing explicit from CLI or settings → auto by default (upstream parity),
+  // unless auto is unavailable. Opt out with `permissions.defaultMode` or
+  // `permissions.disableAutoMode: "disable"`.
+  if (orderedModes.length === 0 && feature('TRANSCRIPT_CLASSIFIER')) {
+    orderedModes.push(
+      autoModeStateModule?.pickImplicitDefaultMode({
+        autoCircuitBroken: autoModeCircuitBrokenSync,
+        autoDisabledBySettings: isAutoModeDisabledBySettings(),
+        isRemote: isEnvTruthy(process.env.CLAUDE_CODE_REMOTE),
+      }) ?? 'default',
+    )
+  }
+
   let result: { mode: PermissionMode; notification?: string } | undefined
 
   for (const mode of orderedModes) {
