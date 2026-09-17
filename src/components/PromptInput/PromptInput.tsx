@@ -2405,7 +2405,7 @@ function PromptInput({
     onSearch: requestTranscriptSearch,
     onUndo: canUndo
       ? () => {
-          const previousState = undo();
+          const previousState = undo({ text: input, cursorOffset, pastedContents });
           if (previousState) {
             trackAndSetInput(previousState.text);
             setCursorOffset(previousState.cursorOffset);

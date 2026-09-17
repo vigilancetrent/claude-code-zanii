@@ -1099,6 +1099,29 @@ export function checkPathConstraints(
         }
       }
       for (const cmd of expanded) {
+        // Inner commands of `sh -c '… > file'` carry their own redirects,
+        // which the top-level redirect pass never saw.
+        if (cmd !== top && cmd.redirects.length > 0) {
+          const inner = astRedirectsToOutputRedirections(cmd.redirects)
+          if (inner.hasDangerousRedirection) {
+            return {
+              behavior: 'ask',
+              message:
+                'Shell expansion syntax in paths requires manual approval',
+              decisionReason: {
+                type: 'other',
+                reason: 'Shell expansion syntax in nested redirect target',
+              },
+            }
+          }
+          const r = validateOutputRedirections(
+            inner.redirections,
+            cwd,
+            toolPermissionContext,
+            compoundCommandHasCd,
+          )
+          if (r.behavior !== 'passthrough') return r
+        }
         const result = validateSinglePathCommandArgv(
           cmd,
           cwd,
@@ -1330,6 +1353,9 @@ export function expandNestedCommands(
     }
     const sub = rest.slice(i)
     if (sub.length === 0) return 'too-complex' // bare xargs = echo; still opaque input
+    // `-I {}` (or any literal placeholder) means the path comes from stdin —
+    // nothing static to validate.
+    if (sub.some(a => a.includes('{}'))) return 'too-complex'
     inner = [{ argv: sub, envVars: [], redirects: [], text: sub.join(' ') }]
   } else if (base === 'find') {
     const start = rest.find(a => !a.startsWith('-')) ?? '.'

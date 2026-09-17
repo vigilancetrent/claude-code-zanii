@@ -190,8 +190,13 @@ export function SpinnerAnimationRow({
   const tokensWidth = stringWidth(tokensText);
 
   // === Thinking text (may shrink to fit) ===
+  // `time` is the Ink clock (ms since mount); thinkingStartedAt is epoch —
+  // compare on the same axis. Re-evaluated every frame because `time` changes.
+  void time;
   const deepInThought =
-    thinkingStatus === 'thinking' && thinkingStartedAt != null && time - thinkingStartedAt > DEEP_IN_THOUGHT_AFTER_MS;
+    thinkingStatus === 'thinking' &&
+    thinkingStartedAt != null &&
+    Date.now() - thinkingStartedAt > DEEP_IN_THOUGHT_AFTER_MS;
   let thinkingText =
     thinkingStatus === 'thinking'
       ? `${deepInThought ? 'deep in thought' : 'thinking'}${effortSuffix}`

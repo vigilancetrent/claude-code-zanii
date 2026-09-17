@@ -1847,15 +1847,20 @@ export function REPL({
         }
         return;
       }
-      const secs = Math.floor((Date.now() - first.start) / 1000);
+      const elapsedMs = Date.now() - first.start;
+      if (!ticker) ticker = setInterval(render, 1000);
+      // Most hooks finish in well under a second; only surface the row once
+      // one has actually been running a while, otherwise every tool call flashes.
+      if (elapsedMs < 1000) return;
+      const secs = Math.floor(elapsedMs / 1000);
       const more = running.size > 1 ? ` +${running.size - 1}` : '';
       setSpinnerMessage(`Running ${first.label}${more} (${secs}s)…`);
       ownsMessage = true;
-      if (!ticker) ticker = setInterval(render, 1000);
     };
     setAllHookEventsEnabled(true);
     registerHookEventHandler(event => {
       if (event.type === 'started') {
+        if (event.async) return; // backgrounded — would pin the row for minutes
         running.set(event.hookId, { label: `${event.hookEvent} hook ${event.hookName}`, start: Date.now() });
         if (event.hookEvent === 'SessionStart') setSessionStartHookRunning(true);
         render();
@@ -5881,8 +5886,10 @@ export function REPL({
   // while deferredMessages lags behind messages. Suppressed when viewing an
   // agent — displayedMessages is a different array there, and onAgentSubmit
   // doesn't use the placeholder anyway.
+  // Baseline was captured from the raw list; compare against the raw list
+  // too — /focus collapses displayedMessages to a handful of entries.
   const placeholderText =
-    userInputOnProcessing && !viewedAgentTask && displayedMessages.length <= userInputBaselineRef.current
+    userInputOnProcessing && !viewedAgentTask && unfocusedMessages.length <= userInputBaselineRef.current
       ? userInputOnProcessing
       : undefined;
 

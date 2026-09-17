@@ -246,7 +246,7 @@ export function getRuntimeMainLoopModel(params: {
   // planner model runs while in plan mode, the session model executes.
   const planModel = getSettings_DEPRECATED()?.planModel
   if (planModel && permissionMode === 'plan') {
-    return planModel as ModelName
+    return parseUserSpecifiedModel(planModel)
   }
 
   // opusplan uses Opus in plan mode without [1m] suffix.

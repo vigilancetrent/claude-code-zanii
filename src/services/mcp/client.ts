@@ -1934,19 +1934,6 @@ export const fetchToolsForClient = memoizeWithLRU(
                     continue
                   }
 
-                  // 403 after step-up: name the missing scope and point at /mcp.
-                  if (
-                    error instanceof UnauthorizedError ||
-                    (error instanceof Error &&
-                      /(?:^|\D)403(?:\D|$)/.test(error.message))
-                  ) {
-                    const scope = getLastInsufficientScope(client.name)
-                    throw new TelemetrySafeError_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS(
-                      `MCP server "${client.name}" refused ${tool.name} (403${scope ? `, missing scope: ${scope}` : ''}). Run /mcp to re-authenticate.`,
-                      'mcp_403_insufficient_scope',
-                    )
-                  }
-
                   // Emit progress when tool fails
                   if (onProgress && toolUseId) {
                     onProgress({
@@ -1959,6 +1946,15 @@ export const fetchToolsForClient = memoizeWithLRU(
                         elapsedTimeMs: Date.now() - startTime,
                       },
                     })
+                  }
+                  // Auth failure after the SDK's own step-up attempt: name the
+                  // missing scope (if a 403 told us) and point at /mcp.
+                  if (error instanceof UnauthorizedError) {
+                    const scope = getLastInsufficientScope(client.name)
+                    throw new TelemetrySafeError_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS(
+                      `MCP server "${client.name}" rejected ${tool.name} as unauthorized${scope ? ` (missing scope: ${scope})` : ''}. Run /mcp to re-authenticate.`,
+                      'mcp_unauthorized',
+                    )
                   }
                   // Wrap MCP SDK errors so telemetry gets useful context
                   // instead of just "Error" or "McpError" (the constructor

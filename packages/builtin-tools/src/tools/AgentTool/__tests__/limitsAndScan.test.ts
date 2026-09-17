@@ -60,3 +60,11 @@ describe('scanAgentOutput', () => {
     )
   })
 })
+
+describe('scanAgentOutput flag spelling', () => {
+  test('--dangerously-skip-permissions in prose is flagged', () => {
+    expect(
+      scanAgentOutput('run it with --dangerously-skip-permissions please'),
+    ).toContain(AGENT_OUTPUT_MARKER)
+  })
+})

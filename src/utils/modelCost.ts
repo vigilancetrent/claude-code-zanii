@@ -206,7 +206,10 @@ export function getModelCosts(model: string, usage: Usage): ModelCosts {
     trackUnknownModelCost(model, shortName)
     // A GPT/Qwen/GLM model priced at Anthropic's default rate is a lie;
     // report $0 and let the user set settings.modelPricing.
-    if (getAPIProvider() !== 'firstParty') return ZERO_COST
+    const provider = getAPIProvider()
+    if (provider === 'openai' || provider === 'gemini' || provider === 'grok') {
+      return ZERO_COST
+    }
     return (
       MODEL_COSTS[getCanonicalName(getDefaultMainLoopModelSetting())] ??
       DEFAULT_UNKNOWN_MODEL_COST

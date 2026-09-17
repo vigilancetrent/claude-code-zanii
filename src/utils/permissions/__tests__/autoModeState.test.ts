@@ -24,6 +24,12 @@ describe('pickImplicitDefaultMode', () => {
     ).toBe('default')
   })
 
+  test('falls back to default for non-interactive (-p / SDK) sessions', () => {
+    expect(pickImplicitDefaultMode({ ...ok, isNonInteractive: true })).toBe(
+      'default',
+    )
+  })
+
   test('falls back to default in CLAUDE_CODE_REMOTE', () => {
     expect(pickImplicitDefaultMode({ ...ok, isRemote: true })).toBe('default')
   })

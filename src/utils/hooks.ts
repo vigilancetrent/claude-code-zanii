@@ -2579,7 +2579,12 @@ async function* executeHooks({
         return
       }
 
-      emitHookStarted(hookId, hookName, hookEvent)
+      emitHookStarted(
+        hookId,
+        hookName,
+        hookEvent,
+        !!(hook.async || hook.asyncRewake),
+      )
 
       const result = await execCommandHook(
         hook,

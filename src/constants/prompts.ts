@@ -516,8 +516,10 @@ ${CYBER_RISK_INSTRUCTION}`,
     systemPromptSection('session_guidance', () =>
       getSessionSpecificGuidanceSection(enabledTools, skillToolCommands),
     ),
-    systemPromptSection('repo_map', () =>
-      getInitialSettings().repoMap ? getRepoMapSection() : null,
+    DANGEROUS_uncachedSystemPromptSection(
+      'repo_map',
+      () => (getInitialSettings().repoMap ? getRepoMapSection() : null),
+      'CodeGraph builds in the background; null must not be cached until indexed',
     ),
     systemPromptSection('frontend_verification', () =>
       getFrontendVerificationSection(enabledTools),

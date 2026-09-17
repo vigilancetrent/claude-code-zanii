@@ -88,3 +88,32 @@ describe('checkPathConstraints with nested commands', () => {
     )
   })
 })
+
+describe('nested redirects and xargs placeholders', () => {
+  // Pass the real top-level redirects so the un-nested control case goes
+  // through the same redirect gate the nested one now does.
+  const run = (cmd: string) => {
+    const cmds = ast(cmd)
+    return checkPathConstraints(
+      { command: cmd } as any,
+      cwd,
+      ctx,
+      false,
+      cmds.flatMap(c => c.redirects),
+      cmds,
+    )
+  }
+
+  test("sh -c '… > file' is checked like a top-level redirect", () => {
+    expect(run("sh -c 'echo x > /etc/hosts'").behavior).toBe('ask')
+    expect(run("sh -c 'echo x > out.txt'").behavior).toBe(
+      run('echo x > out.txt').behavior,
+    )
+  })
+
+  test('xargs -I {} is unanalyzable', () => {
+    expect(expandNestedCommands(ast('xargs -I {} rm -rf {}')[0]!)).toBe(
+      'too-complex',
+    )
+  })
+})
