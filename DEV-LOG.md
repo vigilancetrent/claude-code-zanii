@@ -1,5 +1,11 @@
 # DEV-LOG
 
+## v2.12.3 reasoning_effort 自适应 (2026-09-17)
+
+OpenAI 兼容服务器对 `reasoning_effort` 的合法取值各不相同（llama.cpp 上 Qwen 模板只接受 xhigh/medium/low，发 `high` 直接 Jinja 500）。`requestBody.ts`：被拒后解析错误文本里的 "Supported types are …"，按 model 记住最接近的取值（同距离取更高档）或不再发送该字段，然后重试一次；后续请求直接用记住的值。
+
+---
+
 ## v2.12.2 图片粘贴无响应 + /model 被 OPENAI_MODEL 覆盖 (2026-09-17)
 
 - `model_gateway/gateway.py` 流式路径曾把后端 4xx 以 HTTP 200 转发（body 是 JSON error），OpenAI SDK 解析不到任何 SSE 事件 → 整轮无输出。现在先打开上游流、按真实状态码返回错误。

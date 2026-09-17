@@ -347,3 +347,41 @@ describe('effort → OpenAI chat completions', () => {
     delete process.env.OPENAI_ENABLE_THINKING
   })
 })
+
+describe('adaptive reasoning_effort', () => {
+  const {
+    applyEffortOverride,
+    isReasoningEffortRejection,
+    nearestEffort,
+    parseSupportedEfforts,
+    rememberEffortRejection,
+    _resetEffortOverridesForTests,
+  } = require('../requestBody') as typeof import('../requestBody')
+  const jinja =
+    'Error: Jinja Exception: Unexpected reasoning effort high. Supported types are xhigh (default), medium, and low.'
+
+  test('parses the supported set from a llama.cpp/Jinja error and picks the nearest (higher on tie)', () => {
+    expect(isReasoningEffortRejection(jinja)).toBe(true)
+    expect(parseSupportedEfforts(jinja)).toEqual(['low', 'medium', 'xhigh'])
+    expect(nearestEffort('high', ['low', 'medium', 'xhigh'])).toBe('xhigh')
+    expect(nearestEffort('low', ['medium', 'xhigh'])).toBe('medium')
+    expect(nearestEffort('high', [])).toBeUndefined()
+  })
+
+  test('remembers the per-model override; unknown set → stop sending the field', () => {
+    _resetEffortOverridesForTests()
+    expect(applyEffortOverride('qwen', 'high')).toBe('high')
+    expect(rememberEffortRejection('qwen', 'high', jinja)).toBe('xhigh')
+    expect(applyEffortOverride('qwen', 'high')).toBe('xhigh')
+    expect(
+      rememberEffortRejection(
+        'other',
+        'high',
+        'reasoning_effort is not allowed',
+      ),
+    ).toBeUndefined()
+    expect(applyEffortOverride('other', 'high')).toBeUndefined()
+    expect(applyEffortOverride('untouched', 'medium')).toBe('medium')
+    _resetEffortOverridesForTests()
+  })
+})

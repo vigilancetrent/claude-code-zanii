@@ -65,13 +65,93 @@ export function resolveOpenAIMaxTokens(
  * Map our effort level onto Chat Completions `reasoning_effort`. Only the
  * three classic values are universally accepted; xhigh/max fold into high.
  */
+export type ChatReasoningEffort =
+  | 'minimal'
+  | 'low'
+  | 'medium'
+  | 'high'
+  | 'xhigh'
+const EFFORT_RANK: ChatReasoningEffort[] = [
+  'minimal',
+  'low',
+  'medium',
+  'high',
+  'xhigh',
+]
+
 export function toChatCompletionsReasoningEffort(
   effort: unknown,
-): 'low' | 'medium' | 'high' | undefined {
+): ChatReasoningEffort | undefined {
   if (effort === 'low' || effort === 'medium' || effort === 'high')
     return effort
   if (effort === 'xhigh' || effort === 'max') return 'high'
   return undefined
+}
+
+/**
+ * Every OpenAI-compatible server has its own idea of valid reasoning_effort
+ * values (chat templates differ per model: a Qwen template may accept only
+ * xhigh/medium/low). When a request is rejected for the effort value we
+ * remember, per model, what to send instead — parsed from the server's own
+ * "Supported types are …" text when present, otherwise nothing — and retry.
+ */
+const effortOverrideByModel = new Map<string, ChatReasoningEffort | null>()
+
+export function applyEffortOverride(
+  model: string,
+  effort: ChatReasoningEffort | undefined,
+): ChatReasoningEffort | undefined {
+  if (effort === undefined) return undefined
+  if (!effortOverrideByModel.has(model)) return effort
+  return effortOverrideByModel.get(model) ?? undefined
+}
+
+export function isReasoningEffortRejection(message: string): boolean {
+  return /reasoning[ _-]?effort/i.test(message)
+}
+
+/** Levels the server named in its error, in our rank order; empty if none. */
+export function parseSupportedEfforts(message: string): ChatReasoningEffort[] {
+  const m = /supported (?:types|values)?\s*(?:are|:)?\s*([^.\n]+)/i.exec(
+    message,
+  )
+  const haystack = (m?.[1] ?? '').toLowerCase()
+  return EFFORT_RANK.filter(level =>
+    new RegExp(`\\b${level}\\b`).test(haystack),
+  )
+}
+
+/** Closest supported level to what was asked, preferring the higher one on a tie. */
+export function nearestEffort(
+  wanted: ChatReasoningEffort,
+  supported: ChatReasoningEffort[],
+): ChatReasoningEffort | undefined {
+  if (supported.length === 0) return undefined
+  const want = EFFORT_RANK.indexOf(wanted)
+  return [...supported].sort(
+    (a, b) =>
+      Math.abs(EFFORT_RANK.indexOf(a) - want) -
+        Math.abs(EFFORT_RANK.indexOf(b) - want) ||
+      EFFORT_RANK.indexOf(b) - EFFORT_RANK.indexOf(a),
+  )[0]
+}
+
+/**
+ * Record what to send for this model after a rejection. Returns the new
+ * value (undefined = stop sending the field) so the caller can log it.
+ */
+export function rememberEffortRejection(
+  model: string,
+  wanted: ChatReasoningEffort,
+  message: string,
+): ChatReasoningEffort | undefined {
+  const next = nearestEffort(wanted, parseSupportedEfforts(message))
+  effortOverrideByModel.set(model, next ?? null)
+  return next
+}
+
+export function _resetEffortOverridesForTests(): void {
+  effortOverrideByModel.clear()
 }
 
 /**
@@ -96,7 +176,7 @@ export function buildOpenAIRequestBody(params: {
   /** Session-scoped routing key for official OpenAI requests. */
   promptCacheKey?: string
   /** Omitted when undefined so plain endpoints never see the key. */
-  reasoningEffort?: 'low' | 'medium' | 'high'
+  reasoningEffort?: ChatReasoningEffort
 }): ChatCompletionCreateParamsStreaming & {
   thinking?: { type: string }
   enable_thinking?: boolean

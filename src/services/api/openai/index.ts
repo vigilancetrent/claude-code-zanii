@@ -48,6 +48,9 @@ import {
   resolveOpenAIMaxTokens,
   buildOpenAIRequestBody,
   toChatCompletionsReasoningEffort,
+  applyEffortOverride,
+  isReasoningEffortRejection,
+  rememberEffortRejection,
 } from './requestBody.js'
 import { resolveAppliedEffort } from '../../../utils/effort.js'
 import { getGatewayHintHeaders } from '../gatewayHints.js'
@@ -335,7 +338,10 @@ export async function* queryModelOpenAI(
       options.model,
       options.effortValue,
     )
-    const chatReasoningEffort = toChatCompletionsReasoningEffort(appliedEffort)
+    const chatReasoningEffort = applyEffortOverride(
+      openaiModel,
+      toChatCompletionsReasoningEffort(appliedEffort),
+    )
     const enableThinking = isOpenAIThinkingEnabled(
       openaiModel,
       chatReasoningEffort,
@@ -633,6 +639,32 @@ export async function* queryModelOpenAI(
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logForDebugging(`[OpenAI] Error: ${errorMessage}`, { level: 'error' })
+    // The server rejected our reasoning_effort value (per-model chat
+    // templates accept different sets). Learn from its error text and retry.
+    if (attempt < 2 && isReasoningEffortRejection(errorMessage)) {
+      const model = resolveOpenAIModel(options.model)
+      const wanted = applyEffortOverride(
+        model,
+        toChatCompletionsReasoningEffort(
+          resolveAppliedEffort(options.model, options.effortValue),
+        ),
+      )
+      if (wanted !== undefined) {
+        const next = rememberEffortRejection(model, wanted, errorMessage)
+        logForDebugging(
+          `[OpenAI] ${model} rejected reasoning_effort=${wanted}; retrying with ${next ?? 'no reasoning_effort'}`,
+        )
+        yield* queryModelOpenAI(
+          messages,
+          systemPrompt,
+          tools,
+          signal,
+          options,
+          attempt + 1,
+        )
+        return
+      }
+    }
     // Text-only model rejected an image (e.g. "glm-4.7-flash is not a
     // multimodal model"): drop the images, leave a note, and ask once more so
     // the user gets an answer that says what happened instead of a dead turn.
