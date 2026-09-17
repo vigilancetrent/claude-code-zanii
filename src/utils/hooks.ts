@@ -4434,6 +4434,20 @@ export function executeCwdChangedHooks(
   return executeEnvHooks(hookInput, timeoutMs)
 }
 
+/** Esc / Ctrl-C while a turn is running. Fire-and-forget; never blocks the UI. */
+export function executeInterruptHooks(
+  queryInFlight: boolean,
+  timeoutMs: number = TOOL_HOOK_EXECUTION_TIMEOUT_MS,
+): Promise<HookOutsideReplResult[]> {
+  const hookInput = {
+    ...createBaseHookInput(undefined),
+    hook_event_name: 'Interrupt' as const,
+    reason: 'user_cancel' as const,
+    query_in_flight: queryInFlight,
+  }
+  return executeHooksOutsideREPL({ hookInput, timeoutMs })
+}
+
 export function executeFileChangedHooks(
   filePath: string,
   event: 'change' | 'add' | 'unlink',
