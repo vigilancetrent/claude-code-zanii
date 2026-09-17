@@ -121,6 +121,12 @@ Each: `src/commands/<name>/{index.ts,<name>.ts}` following `src/commands/effort/
 - [x] **15.6** Built-in `librarian` agent (read-only + web) for library docs/examples.
 - [x] **15.7** `postEditChecks: {lint?, test?}` → synthesized PostToolUse hook (matcher `Edit|Write|NotebookEdit`) merged into the hooks snapshot.
 
+## Phase 16 — Smarter loop (research §8)
+
+- [x] **16.1** Compile in `REACTIVE_COMPACT`, `UNATTENDED_RETRY`, `POWERSHELL_AUTO_MODE`, `QUICK_SEARCH`, `SKILL_IMPROVEMENT`.
+- [x] **16.2** Context window auto-detected from the OpenAI-compatible `/v1/models` (`max_model_len` | `meta.n_ctx` | `context_length` | `context_window`); `model_gateway` passes those fields through.
+- [x] **16.3** Repeated-failure loop breaker (3 identical failing tool calls → system reminder).
+
 ## Explicitly not doing
 
 - Claude 5 model IDs / aliases / pricing (user decision).
@@ -156,6 +162,8 @@ Each: `src/commands/<name>/{index.ts,<name>.ts}` following `src/commands/effort/
 | 14 | Spinner: `deep in thought` after 45 s of thinking; `Picking the thought back up` via `CompactProgressEvent{type:'output_limit_resume'}` from the query loop | — (render-only) |
 
 | 15 | `SKILL_LEARNING` compiled in (opt-in at runtime); `/undo` reverts last turn's edits; `modelPricing` setting + $0 for unknown non-Anthropic models; `planModel` (architect/editor split for any provider); `repoMap` CodeGraph prompt section; built-in `librarian` agent; `postEditChecks` → synthesized PostToolUse hook | `phase15.test.ts` |
+
+| 16 | Smarter loop: `REACTIVE_COMPACT`, `UNATTENDED_RETRY`, `POWERSHELL_AUTO_MODE`, `QUICK_SEARCH`, `SKILL_IMPROVEMENT` compiled in; context window read from OpenAI-compatible `/v1/models` (`max_model_len` / `meta.n_ctx` / `context_length`) + gateway passthrough; repeated-failure loop breaker (3 identical failing tool calls → system reminder) | `repeatedFailure.test.ts`, `contextLengthFromModelEntry.test.ts` |
 
 Behaviour change to note: subagents may now spawn subagents (3 layers, like upstream). Set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` or `maxSubagentDepth: 1` to restore the old no-nesting behaviour. Background agents still never get AgentTool (async allow-list unchanged).
 

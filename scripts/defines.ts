@@ -91,6 +91,12 @@ export const DEFAULT_BUILD_FEATURES = [
   'EXPERIMENTAL_SKILL_SEARCH', // 技能搜索（bounded caches 已修复 overflow，内存问题已解决）
   'EXPERIMENTAL_SEARCH_EXTRA_TOOLS', // 工具搜索预取管道（TF-IDF 索引 + inter-turn 异步预取）
   'SKILL_LEARNING', // compiled in; runtime observers stay OFF until `/skill-learning start` (Hermes-style closed learning loop)
+  // Smarter loop (v2.13): recovery + guardrail flags that were implemented but never compiled in
+  'REACTIVE_COMPACT', // prompt-too-long / media-size 413 → compact and retry instead of ending the turn
+  'UNATTENDED_RETRY', // persistent 429/529 retry with keep-alive; still needs CLAUDE_CODE_UNATTENDED_RETRY=1 at runtime
+  'POWERSHELL_AUTO_MODE', // auto-mode classifier gets the PowerShell persistence/registry rules (Windows)
+  'QUICK_SEARCH', // ctrl+shift+f global search / ctrl+shift+p quick open keybindings
+  'SKILL_IMPROVEMENT', // post-skill hook that proposes skill improvements; runtime-gated by isSkillImprovementEnabled()
   // P3: poor mode
   'POOR', // 穷鬼模式，跳过 extract_memories/prompt_suggestion 减少消耗
   // Team Memory

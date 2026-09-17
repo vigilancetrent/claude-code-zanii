@@ -296,3 +296,36 @@ Method: for each mechanism a competitor is known for, check whether CCZ already 
 5. `repoMap` setting → CodeGraph-backed prompt section.
 6. Built-in `librarian` agent.
 7. `postEditChecks` → synthesized PostToolUse hook.
+
+---
+
+## 8. How smart are CCZ's agents? — harness-intelligence pass (added 2026-09-17, fifth round)
+
+Sources: [Lil'Log — Harness Engineering for Self-Improvement](https://lilianweng.github.io/posts/2026-07-04-harness/), [Addy Osmani — Agent Harness Engineering](https://addyosmani.com/blog/agent-harness-engineering/), [Building Effective AI Coding Agents for the Terminal (arXiv 2603.05344)](https://arxiv.org/pdf/2603.05344), [Augment — Harness Engineering](https://www.augmentcode.com/guides/harness-engineering-ai-coding-agents), [Martin Fowler — Harness engineering](https://martinfowler.com/articles/harness-engineering.html).
+
+"Smart" is not the model — it's the loop around it. The 2026 consensus harness has five layers: tool orchestration, **verification loops**, **context & memory**, guardrails, observability. Scored against that:
+
+| Layer / mechanism (who does it well) | CCZ | Verdict |
+|---|---|---|
+| Plan → execute → observe → improve loop; explicit task decomposition | plan mode, Todo/Task tools, `/goal` persistent objective with budget + blocked-attempt audit, `/loop`, ultraplan | ✓ strong |
+| Independent adversarial **verification before "done"** (Anthropic verifier, Aider lint/test loop) | `verification` built-in agent is ON (`tengu_hive_evidence: true`) and the prompt makes the main agent own the gate; `postEditChecks` (Phase 15) = Aider's auto-lint/test | ✓ strong |
+| Context compaction that **recovers** from prompt-too-long instead of dying | auto-compact ✓, microcompact ✓, but **`REACTIVE_COMPACT` compiled OUT** — a 413 from a small-window local model ends the turn | **fix: enable** |
+| Knowing the real context window (Terminal-Bench paper: "lightweight context windows") | Anthropic models: fetched from `/v1/models`. **OpenAI-compatible/local models: hard-coded 200K** → auto-compact fires far too late for a 32K llama.cpp model; vLLM `max_model_len` / llama.cpp `meta.n_ctx` are exposed but ignored, and `model_gateway` strips them | **fix: read window from `/v1/models`, gateway passes it through** |
+| Error recovery: distinguish transient vs terminal, retry with backoff, unattended persistence | `withRetry` ✓ (529/429/overloaded, media-size, max-output-token continuation); **`UNATTENDED_RETRY` compiled OUT** (env-gated at runtime anyway) | **fix: compile in** |
+| Loop breaker — stop repeating the same failing action (Hashimoto: "engineer so the agent never makes that mistake again") | denial tracking exists for *permission* denials only; a model that runs the same failing command 5× in a row gets no nudge | **fix: repeated-failure detector → system reminder after 3 identical failures** |
+| Memory & continual learning (Hermes, ACE structured playbook) | L1/L2/L3 memory, auto-memory feedback, dream consolidation, skill learning (Phase 15) ≈ ACE's generator/reflector/curator | ✓ |
+| Filesystem as memory, tool-result offloading (head/tail + on-disk) | ✓ (`toolResultStorage`, 1 GB cap, previews) | ✓ |
+| Progressive tool disclosure | ✓ (`SearchExtraTools`, deferred MCP tools, skills) | ✓ |
+| Subagent isolation, worktrees, parallelism | ✓ (+ depth/concurrency from Phase 11) | ✓ |
+| Guardrails: auto-mode classifier, sandbox, approval gates, output scanning | ✓; **`POWERSHELL_AUTO_MODE` compiled OUT** — Windows users' auto-mode classifier lacks the PowerShell persistence/registry rules | **fix: enable** |
+| Observability: traces, cost, per-step | Langfuse ✓, OTel ✓, `/cost` (now correct for local models) | ✓ |
+| Second opinion (Amp Oracle) / adaptive reasoning effort | `/advisor` ✓; effort now adapts to what the server accepts (2.12.3) | ✓ |
+| Self-harness / meta-harness (Lil'Log) — agent edits its own harness from failure mining | skill learning proposes skills/commands from observations; no harness-code evolution | out of scope (research-grade) |
+
+**Bottom line:** the loop is already upstream-grade (plan, verify, memory, disclosure, guardrails). What was making CCZ *feel* dumb on local models is three compiled-out recovery flags plus a wrong context-window assumption — the agent literally didn't know how much room it had, and when it ran out it couldn't recover.
+
+### Plan — Phase 16 (smarter loop)
+
+1. Enable `REACTIVE_COMPACT`, `UNATTENDED_RETRY` (still env-gated), `POWERSHELL_AUTO_MODE`, `QUICK_SEARCH`, `SKILL_IMPROVEMENT` (runtime-gated). (`RUN_SKILL_GENERATOR` needs `src/skills/bundled/runSkillGenerator.ts`, which this fork does not have — left off.)
+2. Context window from the server: `refreshModelCapabilities()` also handles the OpenAI-compatible provider, mapping `max_model_len` / `meta.n_ctx` / `context_length` → `max_input_tokens`; `getContextWindowForModel` trusts it for any size on that provider; `model_gateway` passes backend model metadata through.
+3. Repeated-failure loop breaker: after 3 identical failing tool calls, inject a system reminder ("same call failed 3×; change approach or ask the user") and log it.

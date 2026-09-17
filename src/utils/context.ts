@@ -1,4 +1,5 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
+import { getAPIProvider } from './model/providers.js'
 import { CONTEXT_1M_BETA_HEADER } from '../constants/betas.js'
 import { getGlobalConfig } from './config.js'
 import { isEnvTruthy } from './envUtils.js'
@@ -95,7 +96,12 @@ export function getContextWindowForModel(
   }
 
   const cap = getModelCapability(model)
-  if (cap?.max_input_tokens && cap.max_input_tokens >= 100_000) {
+  // The 100K floor guards against bogus Anthropic entries; a local model
+  // really can have an 8K–64K window, so trust whatever the server said.
+  if (
+    cap?.max_input_tokens &&
+    (cap.max_input_tokens >= 100_000 || getAPIProvider() === 'openai')
+  ) {
     if (
       cap.max_input_tokens > MODEL_CONTEXT_WINDOW_DEFAULT &&
       is1mContextDisabled()

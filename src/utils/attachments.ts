@@ -1,4 +1,5 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
+import { repeatedFailureReminder } from './repeatedFailure.js'
 import type { ToolDiscoveryResult } from '../services/searchExtraTools/prefetch.js'
 import {
   logEvent,
@@ -699,6 +700,10 @@ export type Attachment =
       type: 'compaction_reminder'
     }
   | {
+      type: 'repeated_failure'
+      text: string
+    }
+  | {
       type: 'context_efficiency'
     }
   | {
@@ -971,6 +976,12 @@ export async function getAttachments(
     maybe('critical_system_reminder', () =>
       Promise.resolve(getCriticalSystemReminderAttachment(toolUseContext)),
     ),
+    maybe('repeated_failure', () => {
+      const text = repeatedFailureReminder(messages ?? [])
+      return Promise.resolve(
+        text ? [{ type: 'repeated_failure' as const, text }] : [],
+      )
+    }),
     ...(feature('COMPACTION_REMINDERS')
       ? [
           maybe('compaction_reminder', () =>

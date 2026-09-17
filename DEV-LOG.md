@@ -1,5 +1,14 @@
 # DEV-LOG
 
+## v2.13.0 更聪明的循环 (2026-09-17)
+
+调研见 `docs/harness-gap-research-2026-09.md` §8。CCZ 的规划/验证/记忆/工具披露/护栏已是上游水准；让它在本地模型上"显得笨"的是三个没编译进去的恢复开关和一个错误的上下文窗口假设：
+- 编译进 `REACTIVE_COMPACT`（prompt-too-long 时先压缩再重试，而不是结束回合）、`UNATTENDED_RETRY`（仍需 `CLAUDE_CODE_UNATTENDED_RETRY=1`）、`POWERSHELL_AUTO_MODE`、`QUICK_SEARCH`、`SKILL_IMPROVEMENT`。
+- `modelCapabilities.ts` 对 OpenAI 兼容端点也拉 `/v1/models`，从 vLLM `max_model_len` / llama.cpp `meta.n_ctx` / `context_length` 得到真实上下文长度；`context.ts` 对该 provider 接受任意大小。`model_gateway` 透传后端模型元数据。
+- `repeatedFailure.ts`：同一工具调用连续失败 3 次 → 注入 system reminder 要求换思路或提问，避免本地模型死循环。
+
+---
+
 ## v2.12.4 移除 postinstall (2026-09-17)
 
 npm ≥ 11 对任何声明 `postinstall` 的包都会打 `allow-scripts` 警告。ripgrep 已在首次使用时自动下载（`ensureRipgrepAvailable`），Chrome native host 在启用 Chrome 集成时注册，所以 `postinstall` 已无必要，直接删除；保留 `npm run setup:ripgrep` / `setup:chrome` 作为显式入口。顺带修正源码模式下 rg 路径（`src/utils/vendor/ripgrep`，此前错误地找 `<root>/vendor/ripgrep`）。剩余的一行警告来自依赖 `@claude-code-best/mcp-chrome-bridge` 自己的脚本，仅影响可选的 12306 桥接。

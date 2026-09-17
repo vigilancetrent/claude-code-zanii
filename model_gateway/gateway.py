@@ -67,18 +67,18 @@ def _backend_for(model: str) -> tuple[str, str] | None:
 async def models():
     now = time.time()
     if now - _cache["t"] > 10:
-        ids = []
+        entries = {}
         for base, _ in MODEL_ROUTES.values():
             try:
                 r = await client.get(base + "/models", timeout=3)
-                ids += [m["id"] for m in r.json().get("data", [])]
+                for m in r.json().get("data", []):
+                    # keep the backend's metadata (vLLM max_model_len, llama.cpp
+                    # meta.n_ctx, …) so clients can size their context window
+                    entries.setdefault(m["id"], dict(m, owned_by="gateway"))
             except Exception:
                 pass  # backend down -> skip its listed models
-        _cache.update(t=now, models=sorted(set(ids)))
-    return {
-        "object": "list",
-        "data": [{"id": i, "object": "model", "owned_by": "gateway"} for i in _cache["models"]],
-    }
+        _cache.update(t=now, models=[entries[k] for k in sorted(entries)])
+    return {"object": "list", "data": _cache["models"]}
 
 
 @app.post("/v1/chat/completions")
