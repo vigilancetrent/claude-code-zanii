@@ -473,6 +473,41 @@ export const SettingsSchema = lazySchema(() =>
         .describe(
           'Max characters of background task output kept inline before truncation (default 32000, max 160000)',
         ),
+      modelPricing: z
+        .record(
+          z.string(),
+          z.object({
+            input: z.number().nonnegative(),
+            output: z.number().nonnegative(),
+            cacheRead: z.number().nonnegative().optional(),
+            cacheWrite: z.number().nonnegative().optional(),
+          }),
+        )
+        .optional()
+        .describe(
+          'USD per million tokens by model id (exact or prefix match) so /cost is right for OpenAI-compatible, Gemini and local models.',
+        ),
+      planModel: z
+        .string()
+        .optional()
+        .describe(
+          'Model to use while in plan mode (architect/editor split); the session model handles execution. Any provider.',
+        ),
+      repoMap: z
+        .boolean()
+        .optional()
+        .describe(
+          'Inject a ranked map of exported symbols (CodeGraph) into the system prompt so the model knows the codebase shape without grepping.',
+        ),
+      postEditChecks: z
+        .object({
+          lint: z.string().optional(),
+          test: z.string().optional(),
+        })
+        .optional()
+        .describe(
+          'Shell commands run after every Edit/Write/NotebookEdit; non-zero exit feeds the output back to the model (synthesized PostToolUse hook).',
+        ),
       maxSubagentDepth: z
         .number()
         .int()

@@ -253,6 +253,7 @@ import subtask from './commands/subtask/index.js'
 import focus from './commands/focus/index.js'
 import autocompact from './commands/autocompact/index.js'
 import importCmd from './commands/import/index.js'
+import undoCmd from './commands/undo/index.js'
 // stats/index.ts re-exports usage — /stats is now an alias of /usage
 // insights.ts is 113KB (3200 lines, includes diffLines/html rendering). Lazy
 // shim defers the heavy module until /insights is actually invoked.
@@ -371,6 +372,7 @@ const COMMANDS = memoize((): Command[] => [
   focus,
   autocompact,
   importCmd,
+  undoCmd,
   status,
   statusline,
   stickers,

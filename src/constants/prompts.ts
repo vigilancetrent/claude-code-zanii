@@ -2,6 +2,7 @@
 import { type as osType, version as osVersion, release as osRelease } from 'os'
 import { env } from '../utils/env.js'
 import { isFocusModeActive } from '../utils/focusView.js'
+import { getRepoMapSection } from '../utils/repoMap.js'
 import { getIsGit } from '../utils/git.js'
 import { getCwd } from '../utils/cwd.js'
 import { getIsNonInteractiveSession } from '../bootstrap/state.js'
@@ -514,6 +515,9 @@ ${CYBER_RISK_INSTRUCTION}`,
     systemPromptSection('mode_persona', () => getModePersonaSection()),
     systemPromptSection('session_guidance', () =>
       getSessionSpecificGuidanceSection(enabledTools, skillToolCommands),
+    ),
+    systemPromptSection('repo_map', () =>
+      getInitialSettings().repoMap ? getRepoMapSection() : null,
     ),
     systemPromptSection('frontend_verification', () =>
       getFrontendVerificationSection(enabledTools),

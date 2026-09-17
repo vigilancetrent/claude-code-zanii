@@ -62,3 +62,6 @@ credentials.json
 
 # local credentials - never commit
 /secrets/
+
+# VCR fixtures recorded by tests (src/services/vcr.ts); never commit
+/fixtures/

@@ -242,6 +242,13 @@ export function getRuntimeMainLoopModel(params: {
 }): ModelName {
   const { permissionMode, mainLoopModel, exceeds200kTokens = false } = params
 
+  // settings.planModel: architect/editor split for any provider — the
+  // planner model runs while in plan mode, the session model executes.
+  const planModel = getSettings_DEPRECATED()?.planModel
+  if (planModel && permissionMode === 'plan') {
+    return planModel as ModelName
+  }
+
   // opusplan uses Opus in plan mode without [1m] suffix.
   if (
     getUserSpecifiedModelSetting() === 'opusplan' &&
