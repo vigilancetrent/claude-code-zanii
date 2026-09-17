@@ -2,7 +2,12 @@ import { homedir } from 'os'
 import { isAbsolute, resolve } from 'path'
 import type { z } from 'zod/v4'
 import type { ToolPermissionContext } from 'src/Tool.js'
-import type { Redirect, SimpleCommand } from 'src/utils/bash/ast.js'
+import {
+  parseForSecurityFromAst,
+  type Redirect,
+  type SimpleCommand,
+} from 'src/utils/bash/ast.js'
+import { getParserModule } from 'src/utils/bash/bashParser.js'
 import {
   extractOutputRedirections,
   splitCommand_DEPRECATED,
@@ -30,6 +35,7 @@ export type PathCommand =
   | 'find'
   | 'mkdir'
   | 'touch'
+  | 'tee'
   | 'rm'
   | 'rmdir'
   | 'mv'
@@ -271,6 +277,8 @@ export const PATH_EXTRACTORS: Record<
   // All simple commands: just filter out flags
   mkdir: filterOutFlags,
   touch: filterOutFlags,
+  // tee writes every positional arg — same shape as touch
+  tee: filterOutFlags,
   rm: filterOutFlags,
   rmdir: filterOutFlags,
   mv: filterOutFlags,
@@ -516,6 +524,7 @@ const ACTION_VERBS: Record<PathCommand, string> = {
   find: 'search files in',
   mkdir: 'create directories in',
   touch: 'create or modify files in',
+  tee: 'write files in',
   rm: 'remove files from',
   rmdir: 'remove directories from',
   mv: 'move files to/from',
@@ -555,6 +564,7 @@ export const COMMAND_OPERATION_TYPE: Record<PathCommand, FileOperationType> = {
   find: 'read',
   mkdir: 'create',
   touch: 'create',
+  tee: 'create',
   rm: 'write',
   rmdir: 'write',
   mv: 'write',
@@ -1075,15 +1085,29 @@ export function checkPathConstraints(
   // parseCommandArguments to silently return [] and skip path validation
   // (isDangerousRemovalPath etc). The AST already resolved argv correctly.
   if (astCommands) {
-    for (const cmd of astCommands) {
-      const result = validateSinglePathCommandArgv(
-        cmd,
-        cwd,
-        toolPermissionContext,
-        compoundCommandHasCd,
-      )
-      if (result.behavior === 'ask' || result.behavior === 'deny') {
-        return result
+    for (const top of astCommands) {
+      const expanded = expandNestedCommands(top)
+      if (expanded === 'too-complex') {
+        return {
+          behavior: 'ask',
+          message: `Cannot statically analyze the command embedded in '${top.argv[0]}' — manual approval required`,
+          decisionReason: {
+            type: 'other',
+            reason:
+              'Embedded shell script or opaque wrapper requires manual approval',
+          },
+        }
+      }
+      for (const cmd of expanded) {
+        const result = validateSinglePathCommandArgv(
+          cmd,
+          cwd,
+          toolPermissionContext,
+          compoundCommandHasCd,
+        )
+        if (result.behavior === 'ask' || result.behavior === 'deny') {
+          return result
+        }
       }
     }
   } else {
@@ -1253,6 +1277,84 @@ function skipEnvFlags(a: readonly string[]): number {
     else break
   }
   return i < a.length ? i : -1
+}
+
+const SHELL_INTERPRETERS = new Set(['sh', 'bash', 'zsh', 'dash', 'ksh'])
+// xargs flags that consume the following token
+const XARGS_VALUE_FLAGS = new Set([
+  '-n',
+  '-I',
+  '-L',
+  '-P',
+  '-d',
+  '-s',
+  '-a',
+  '-E',
+  '-i',
+])
+const FIND_EXEC_FLAGS = new Set(['-exec', '-execdir', '-ok', '-okdir'])
+const MAX_NESTED_EXPANSION_DEPTH = 3
+
+/**
+ * SECURITY: `sh -c "rm -rf /"`, `xargs rm -rf`, `find / -exec rm -rf {} ;`
+ * all hide the real command behind argv[0] that path validation ignores.
+ * Expand those into the SimpleCommands they will run so the dangerous-rm
+ * and write-path checks see them. Returns 'too-complex' when the embedded
+ * script can't be modelled — the caller then asks instead of passing through.
+ */
+export function expandNestedCommands(
+  cmd: SimpleCommand,
+  depth = 0,
+): SimpleCommand[] | 'too-complex' {
+  if (depth > MAX_NESTED_EXPANSION_DEPTH) return 'too-complex'
+  const argv = stripWrappersFromArgv(cmd.argv)
+  const [base, ...rest] = argv
+  if (!base) return [cmd]
+
+  let inner: SimpleCommand[] | 'too-complex' | null = null
+  if (SHELL_INTERPRETERS.has(base)) {
+    const c = rest.findIndex(a => /^-[a-zA-Z]*c[a-zA-Z]*$/.test(a))
+    if (c >= 0) {
+      const script = rest[c + 1]
+      if (script === undefined) return 'too-complex'
+      const mod = getParserModule()
+      const root = mod?.parse(script)
+      if (!root) return 'too-complex'
+      const parsed = parseForSecurityFromAst(script, root)
+      inner = parsed.kind === 'simple' ? parsed.commands : 'too-complex'
+    }
+  } else if (base === 'xargs') {
+    let i = 0
+    while (i < rest.length && rest[i]!.startsWith('-')) {
+      i += XARGS_VALUE_FLAGS.has(rest[i]!) ? 2 : 1
+    }
+    const sub = rest.slice(i)
+    if (sub.length === 0) return 'too-complex' // bare xargs = echo; still opaque input
+    inner = [{ argv: sub, envVars: [], redirects: [], text: sub.join(' ') }]
+  } else if (base === 'find') {
+    const start = rest.find(a => !a.startsWith('-')) ?? '.'
+    const cmds: SimpleCommand[] = []
+    for (let i = 0; i < rest.length; i++) {
+      if (!FIND_EXEC_FLAGS.has(rest[i]!)) continue
+      const end = rest.findIndex((a, j) => j > i && (a === ';' || a === '+'))
+      const sub = rest
+        .slice(i + 1, end < 0 ? undefined : end)
+        .map(a => (a === '{}' ? start : a))
+      if (sub.length === 0) return 'too-complex'
+      cmds.push({ argv: sub, envVars: [], redirects: [], text: sub.join(' ') })
+    }
+    if (cmds.length > 0) inner = cmds
+  }
+
+  if (inner === null) return [cmd]
+  if (inner === 'too-complex') return 'too-complex'
+  const out: SimpleCommand[] = [cmd]
+  for (const c of inner) {
+    const expanded = expandNestedCommands(c, depth + 1)
+    if (expanded === 'too-complex') return 'too-complex'
+    out.push(...expanded)
+  }
+  return out
 }
 
 /**
