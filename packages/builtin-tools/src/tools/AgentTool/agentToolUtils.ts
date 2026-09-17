@@ -58,6 +58,8 @@ import { isInProcessTeammate } from 'src/utils/teammateContext.js'
 import { getTokenCountFromUsage } from 'src/utils/tokens.js'
 import { EXIT_PLAN_MODE_V2_TOOL_NAME } from '../ExitPlanModeTool/constants.js'
 import { AGENT_TOOL_NAME, LEGACY_AGENT_TOOL_NAME } from './constants.js'
+import { getMaxSubagentSpawnDepth } from './limits.js'
+import { scanAgentOutput } from './scanAgentOutput.js'
 import type { AgentDefinition } from './loadAgentsDir.js'
 export type ResolvedAgentTools = {
   hasWildcard: boolean
@@ -72,16 +74,25 @@ export function filterToolsForAgent({
   isBuiltIn,
   isAsync = false,
   permissionMode,
+  childDepth = 1,
 }: {
   tools: Tools
   isBuiltIn: boolean
   isAsync?: boolean
   permissionMode?: PermissionMode
+  /** Depth the agent receiving these tools runs at (main = 0). */
+  childDepth?: number
 }): Tools {
+  // Nested spawning: the child only keeps AgentTool if *its* children
+  // would still be within the depth limit.
+  const canNest = childDepth + 1 <= getMaxSubagentSpawnDepth()
   return tools.filter(tool => {
     // Allow MCP tools for all agents
     if (tool.name.startsWith('mcp__')) {
       return true
+    }
+    if (toolMatchesName(tool, AGENT_TOOL_NAME) && !canNest) {
+      return false
     }
     // Allow ExitPlanMode for agents in plan mode (e.g., in-process teammates)
     // This bypasses both the ALL_AGENT_DISALLOWED_TOOLS and async tool filters
@@ -127,6 +138,7 @@ export function resolveAgentTools(
   availableTools: Tools,
   isAsync = false,
   isMainThread = false,
+  childDepth = 1,
 ): ResolvedAgentTools {
   const {
     tools: agentTools,
@@ -144,6 +156,7 @@ export function resolveAgentTools(
         isBuiltIn: source === 'built-in',
         isAsync,
         permissionMode,
+        childDepth,
       })
 
   // Create a set of disallowed tool names for quick lookup
@@ -318,6 +331,13 @@ export function finalizeAgentTool(
       }
     }
   }
+
+  // Escape harness markup / flag permission talk before the parent reads it.
+  content = content.map(block =>
+    block.type === 'text' && typeof block.text === 'string'
+      ? { ...block, text: scanAgentOutput(block.text) }
+      : block,
+  )
 
   const totalTokens = getTokenCountFromUsage(
     lastAssistantMessage.message?.usage as Parameters<
