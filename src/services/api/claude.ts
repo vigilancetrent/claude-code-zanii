@@ -17,6 +17,7 @@ import type {
   BetaUsage,
   BetaMessageParam as MessageParam,
 } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
+import { getGatewayHintHeaders } from './gatewayHints.js'
 import type { TextBlockParam } from '@anthropic-ai/sdk/resources/index.mjs'
 import type { Stream } from '@anthropic-ai/sdk/streaming.mjs'
 import { randomUUID } from 'crypto'
@@ -1919,9 +1920,16 @@ async function* queryModel(
             { ...params, stream: true },
             {
               signal,
-              ...(clientRequestId && {
-                headers: { [CLIENT_REQUEST_ID_HEADER]: clientRequestId },
-              }),
+              headers: {
+                ...(clientRequestId && {
+                  [CLIENT_REQUEST_ID_HEADER]: clientRequestId,
+                }),
+                ...getGatewayHintHeaders({
+                  querySource: options.querySource,
+                  agentId: options.agentId,
+                  messages,
+                }),
+              },
             },
           )
           .withResponse()
