@@ -6,6 +6,7 @@ import type { LocalJSXCommandOnDone } from '../../types/command.js';
 import type { Message } from '../../types/message.js';
 import { getCwd } from '../../utils/cwd.js';
 import { renderMessagesToPlainText } from '../../utils/exportRenderer.js';
+import { renderMessagesToJson, renderMessagesToMarkdown } from '../../utils/exportMarkdown.js';
 import { writeFileSync_DEPRECATED } from '../../utils/slowOperations.js';
 
 function formatTimestamp(date: Date): string {
@@ -69,14 +70,27 @@ export async function call(
   // Render the conversation content
   const content = await exportWithReactRenderer(context);
 
-  // If args are provided, write directly to file and skip dialog
+  // If args are provided, write directly to file and skip dialog.
+  // .md → markdown with tool calls as diffs/fences; .json → raw transcript;
+  // anything else → plain text.
   const filename = args.trim();
   if (filename) {
-    const finalFilename = filename.endsWith('.txt') ? filename : filename.replace(/\.[^.]+$/, '') + '.txt';
+    const ext = /\.(md|json)$/i.exec(filename)?.[1]?.toLowerCase();
+    const finalFilename = ext
+      ? filename
+      : filename.endsWith('.txt')
+        ? filename
+        : filename.replace(/\.[^.]+$/, '') + '.txt';
     const filepath = join(getCwd(), finalFilename);
+    const body =
+      ext === 'md'
+        ? renderMessagesToMarkdown(context.messages, extractFirstPrompt(context.messages) || 'Conversation')
+        : ext === 'json'
+          ? renderMessagesToJson(context.messages)
+          : content;
 
     try {
-      writeFileSync_DEPRECATED(filepath, content, {
+      writeFileSync_DEPRECATED(filepath, body, {
         encoding: 'utf-8',
         flush: true,
       });
