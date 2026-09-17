@@ -174,6 +174,7 @@ bun run docs:dev
 | `packages/mcp-client/` | MCP 客户端库 |
 | `packages/remote-control-server/` | 自托管 Remote Control Server（Docker 部署，含 Web UI）— Web UI 已重构为 React + Vite + Radix UI，支持 ACP agent 接入 |
 | `packages/cloud-artifacts/` | 独立 Cloudflare Worker + R2 服务：POST `/upload` HTML 上传返回 hash URL，GET `/<7d\|30d>/<id>.html` 由 Worker 代理读取；R2 lifecycle rule 自动 7/30 天过期 |
+| `model_gateway/` | 非 workspace 包：FastAPI 单文件网关，按模型名把 `/v1/chat/completions` 路由到 llama.cpp / vLLM，可按 `x-claude-code-request-class` 头把分类器/子代理流量导到小模型（`python gateway.py --check` 自检） |
 | `packages/audio-capture-napi/` | 原生音频捕获（已恢复） |
 | `packages/color-diff-napi/` | 颜色差异计算（完整实现，11 tests） |
 | `packages/image-processor-napi/` | 图像处理（已恢复） |
@@ -228,7 +229,8 @@ Feature flags control which functionality is enabled at runtime. 代码中统一
 - 实验性: `EXPERIMENTAL_SKILL_SEARCH`, `EXPERIMENTAL_SEARCH_EXTRA_TOOLS`
 - 模式: `POOR`, `SSH_REMOTE`
 - 权限/分类器: `BASH_CLASSIFIER`, `TREE_SITTER_BASH`（纯 TS bash AST）, `FORK_SUBAGENT`（`/fork` + 隐式 fork，所有 agent 后台运行）
-- 已禁用: `CONTEXT_COLLAPSE`, `UDS_INBOX`, `LAN_PIPES`, `REVIEW_ARTIFACT`, `TEAMMEM`, `SKILL_LEARNING`
+- 学习: `SKILL_LEARNING`（已编译进 build，运行时默认关闭，`/skill-learning start` 开启）
+- 已禁用: `CONTEXT_COLLAPSE`, `UDS_INBOX`, `LAN_PIPES`, `REVIEW_ARTIFACT`, `TEAMMEM`
 
 **Dev mode 默认**: 全部启用（见 `scripts/dev.ts`）。
 
@@ -262,6 +264,21 @@ Feature flags control which functionality is enabled at runtime. 代码中统一
 - **`src/services/api/grok/`** — client、模型映射
 
 详见各兼容层的 docs 文档。
+
+### v2.12 Harness parity（2026-09）
+
+与上游 Claude Code 2.1.274 对齐的一批功能，详见 `docs/features/harness-parity-2026-09.md`（用户向）与 `docs/harness-gap-research-2026-09.md`（调研）。关键约定：
+
+- **默认权限模式为 auto**（交互式会话；`-p`/SDK 保持 default）。决策逻辑在 `src/utils/permissions/autoModeState.ts#pickImplicitDefaultMode`，退出方式 `permissions.defaultMode` / `disableAutoMode`。
+- **子代理嵌套**：`ToolUseContext.agentDepth`（主线程 0，每层 +1）；上限由 `packages/builtin-tools/src/tools/AgentTool/limits.ts` 读取 env / settings（默认深度 3、并发 20）。`ALL_AGENT_DISALLOWED_TOOLS` 不再静态移除 AgentTool，改由 `filterToolsForAgent` 按深度过滤。
+- **子代理输出扫描**：`scanAgentOutput.ts` 对报告中的 `<system-reminder>` 等控制标签加反斜杠转义，提到权限模式时加 marker 行。
+- **Bash 权限**：`pathValidation.ts#expandNestedCommands` 展开 `sh -c` / `xargs` / `find -exec` 的内层命令（含其重定向）；`bashSecurity.ts#hasNestedCommandSubstitution` 在 auto 模式下直接 deny 嵌套命令替换。
+- **Effort 映射**：`src/utils/effort.ts` 对 openai/gemini 返回 supports=true；`openai/requestBody.ts#toChatCompletionsReasoningEffort`、`gemini/index.ts#effortToGeminiThinkingBudget`；`maxEffortLevel` 在 `resolveAppliedEffort` 里 clamp。
+- **网关提示头**：`src/services/api/gatewayHints.ts`，四个 provider 调用点都传；`model_gateway/gateway.py` 的 `ROUTE_BY_CLASS` 按请求类别路由。
+- **系统提示**：`src/constants/prompts.ts` 新增 `getWorkingStyleSection`（静态、缓存前）、`getFocusModeSection` / `repo_map`（`DANGEROUS_uncached`，缓存边界后）。`/focus` 通过 `src/utils/focusView.ts` 的模块级 flag 通知 prompt，避免 prompts.ts 引入 store。
+- **新增 settings**：`bashOutputMaxChars`、`taskOutputMaxChars`、`toolResultMaxChars`、`maxEffortLevel`、`autoCompactWindow`、`subagentDelegation`、`maxSubagentDepth`、`maxConcurrentSubagents`、`modelPricing`、`planModel`、`repoMap`、`postEditChecks`（schema 在 `src/utils/settings/types.ts`）。`postEditChecks` 由 `hooksConfigSnapshot.ts#withPostEditChecks` 合成 PostToolUse hook。
+- **Hook 事件**：新增 `Interrupt`（`src/utils/hooks.ts#executeInterruptHooks`，REPL `onCancel` 触发）；`emitHookStarted` 多了 `async` 位，REPL 的 spinner 行会跳过异步 hook。
+- **测试注意**：`bun test` 下 `feature()` 恒为 false，tree-sitter 路径要直接调用 `parseForSecurityFromAst(cmd, getParserModule().parse(cmd))`；`agentToolUtils.test.ts` 全局 mock 了 `src/Tool.js`，同目录新测试不要 import `loadAgentsDir`。`udsMessaging.test.ts` 会隔离 `CLAUDE_CODE_MESSAGING_TOKEN`（父 Claude Code 会话会导出它）。
 
 ### 穷鬼模式（Budget Mode）
 

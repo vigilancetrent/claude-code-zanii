@@ -1,7 +1,7 @@
 # CCZ Harness Gap Research — September 2026
 
 **Date:** 2026-09-17
-**Scope:** What official Claude Code (v2.1.274, 2026-09-17) and competing harnesses (Codex CLI, OpenCode, Gemini CLI, Cursor CLI, Copilot CLI, Amp, Droid, Kiro, …) have that CCZ (`claude-code-zanii` v2.11.0) does not.
+**Scope:** What official Claude Code (v2.1.274, 2026-09-17) and competing harnesses (Codex CLI, OpenCode, Gemini CLI, Cursor CLI, Copilot CLI, Amp, Droid, Kiro, …) have that CCZ (`claude-code-zanii` v2.11.0, now shipped as v2.12.0) does not.
 **Method:** Grepped CCZ `src/`, `packages/builtin-tools/`, `scripts/defines.ts` for commands, tools, feature flags, model tables, hook events; compared against upstream changelog + docs and third-party changelogs. Sources at the end.
 
 ---

@@ -532,7 +532,9 @@ AI 也可通过 `SnipTool` 自动截断过长的对话：
 | `LAN_PIPES` | ✅ dev only | LAN 群控 |
 | `MONITOR_TOOL` | ✅ dev+build | 后台监控 |
 | `WORKFLOW_SCRIPTS` | ✅ dev+build | 工作流脚本 |
-| `FORK_SUBAGENT` | ✅ dev+build | 子 Agent |
+| `FORK_SUBAGENT` | ✅ dev+build | 子 Agent（v2.12 起默认开启） |
+| `BASH_CLASSIFIER` / `TREE_SITTER_BASH` | ✅ dev+build | auto 模式 bash 规则 + 纯 TS bash AST（v2.12） |
+| `SKILL_LEARNING` | ✅ dev+build | 技能自学习，运行时 `/skill-learning start` 开启（v2.12） |
 | `KAIROS` | ✅ dev+build | Kairos 调度 |
 | `COORDINATOR_MODE` | ✅ dev+build | 多 Worker |
 | `HISTORY_SNIP` | ✅ dev+build | 历史管理 |

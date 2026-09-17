@@ -1,5 +1,18 @@
 # DEV-LOG
 
+## v2.12.0 Harness parity + 竞品机制 (2026-09-17)
+
+对齐上游 Claude Code 2.1.274（CCZ 原基线 ≈2.1.12x），并补齐 Hermes / Amp / OpenCode / Aider 的招牌机制。调研：`docs/harness-gap-research-2026-09.md`；计划与逐阶段记录：`tasks/todo.md`；用户向说明：`docs/features/harness-parity-2026-09.md`。分支 `feat/harness-gap-2026-09`，18 个 commit，`bun run precheck` 全绿（6089 tests）。
+
+- **Phase 1–4**：auto/fork 模式默认开启；Claude 5+ 不再下发 Todo/Task 工具；`bashOutputMaxChars` 等输出上限；`/effort` 映射到 OpenAI `reasoning_effort` / Gemini `thinkingBudget`；`CLAUDE_CODE_GATEWAY_HINT_HEADERS` + `model_gateway/` 按类别路由。
+- **Phase 5–10**：`/skill-doctor` `/subtask` `/list-agents` `/focus` `/autocompact` `/import` `/prompt-audit` `/deep-research`、`plugin --json`、`subagentDelegation`、`Interrupt` hook + 进度行、MCP SDK 1.30 + 断线通知 + 403 scope 提示、`sh -c`/`xargs`/`find -exec`/`tee` 权限穿透、`/export` md/json。
+- **Phase 11–12**：子代理嵌套（深度 3 / 并发 20）、模型优先级与 `_FORCE`、`omitClaudeMd` frontmatter、子代理输出扫描；auto 模式拒绝嵌套命令替换；Vim `/` 搜索与 `Ctrl+R`；Esc 中止 SessionStart hook。
+- **Phase 13–14**：系统提示对齐（Corrections / Delivering work / Focus / Concise 风格 / 反馈渠道去 Anthropic 内部 Slack）；spinner `deep in thought` 与输出上限续写提示。
+- **Phase 15**：`SKILL_LEARNING` 编译进 build、`/undo`、`modelPricing`、`planModel`、`repoMap`、`librarian` 内置代理、`postEditChecks`。
+- **审计**：构建 + 冒烟 + `/code-review high` 共修 15 个 bug（spinner 时钟轴、repoMap 缓存 null、focus 占位符、`/cost` 回退范围、异步 hook 行、MCP 401/403 判定、`planModel` 别名、Vim redo 栈、`sh -c` 重定向、`xargs -I {}`、`-p` 下的 auto 模式、`ISSUES_EXPLAINER` 空串、UDS 测试环境隔离等）。
+
+---
+
 ## /poor 省流模式 (2026-04-11)
 
 新增 `/poor` 命令，toggle 关闭 `extract_memories` 和 `prompt_suggestion`，省 token。
