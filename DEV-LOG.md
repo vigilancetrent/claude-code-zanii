@@ -1,5 +1,11 @@
 # DEV-LOG
 
+## v2.12.1 ripgrep 自愈 (2026-09-17)
+
+npm ≥ 11 默认跳过 postinstall（`allow-scripts`），平台 ripgrep 二进制可能缺失。`src/utils/ripgrep.ts#ensureRipgrepAvailable` 在启动时后台、首次 Grep 时同步地运行同一个 `scripts/postinstall.cjs` 下载它，失败则回退系统 `rg`。README 相应精简。
+
+---
+
 ## v2.12.0 Harness parity + 竞品机制 (2026-09-17)
 
 对齐上游 Claude Code 2.1.274（CCZ 原基线 ≈2.1.12x），并补齐 Hermes / Amp / OpenCode / Aider 的招牌机制。调研：`docs/harness-gap-research-2026-09.md`；计划与逐阶段记录：`tasks/todo.md`；用户向说明：`docs/features/harness-parity-2026-09.md`。分支 `feat/harness-gap-2026-09`，18 个 commit，`bun run precheck` 全绿（6089 tests）。

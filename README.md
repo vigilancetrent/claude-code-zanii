@@ -14,7 +14,7 @@ A fully restored, open build of Anthropic's [Claude Code](https://docs.anthropic
 
 ![Claude Code Zanii terminal session showing a verified Zanii proof](docs/assets/zanii-proof-terminal.svg)
 
-> **v2.12.0** — Harness parity with Claude Code 2.1.274: auto mode + fork mode by default, nested subagents, `/undo` `/focus` `/skill-doctor` `/import` `/deep-research`, `librarian` agent, repo map, `modelPricing` / `planModel`, effort on every provider, gateway routing headers, Hermes-style skill learning, 15 audit fixes. [What changed](docs/features/harness-parity-2026-09.md) · [Research](docs/harness-gap-research-2026-09.md)
+> **v2.12.1** — Harness parity with Claude Code 2.1.274: auto mode + fork mode by default, nested subagents, `/undo` `/focus` `/skill-doctor` `/import` `/deep-research`, `librarian` agent, repo map, `modelPricing` / `planModel`, effort on every provider, gateway routing headers, Hermes-style skill learning, 15 audit fixes; 2.12.1 self-installs ripgrep when npm skips postinstall. [What changed](docs/features/harness-parity-2026-09.md) · [Research](docs/harness-gap-research-2026-09.md)
 
 ## Proof of action
 
