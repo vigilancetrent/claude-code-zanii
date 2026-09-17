@@ -90,7 +90,32 @@ function convertInternalUserMessage(
       } else if (block.type === 'text') {
         textParts.push(block.text)
       } else if (block.type === 'tool_result') {
-        toolResults.push(block as BetaToolResultBlockParam)
+        // ponytail: tool_result may carry nested image blocks (Read @image, etc.);
+        // extract images to imageParts and keep only text for the tool message.
+        const tr = block as BetaToolResultBlockParam
+        if (Array.isArray(tr.content)) {
+          const textOnly: string[] = []
+          for (const c of tr.content as unknown as Record<string, unknown>[]) {
+            if (typeof c === 'string') textOnly.push(c)
+            else if (
+              c &&
+              typeof c === 'object' &&
+              'text' in c &&
+              typeof (c as { text: unknown }).text === 'string'
+            )
+              textOnly.push((c as { text: string }).text)
+            else if (c && (c as { type?: unknown }).type === 'image') {
+              const ip = convertImageBlockToOpenAI(c)
+              if (ip) imageParts.push(ip)
+            }
+          }
+          toolResults.push({
+            ...tr,
+            content: textOnly.filter(Boolean).join('\n'),
+          } as BetaToolResultBlockParam)
+        } else {
+          toolResults.push(tr)
+        }
       } else if (block.type === 'image') {
         const imagePart = convertImageBlockToOpenAI(
           block as unknown as Record<string, unknown>,
