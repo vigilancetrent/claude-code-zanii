@@ -18,11 +18,16 @@ import { isEnvTruthy, isEnvDefinedFalsy } from '../../../utils/envUtils.js'
  *
  * @param model - The resolved OpenAI model name
  */
-export function isOpenAIThinkingEnabled(model: string): boolean {
+export function isOpenAIThinkingEnabled(
+  model: string,
+  effortLevel?: string,
+): boolean {
   // Explicit disable takes priority (overrides model auto-detect)
   if (isEnvDefinedFalsy(process.env.OPENAI_ENABLE_THINKING)) return false
   // Explicit enable
   if (isEnvTruthy(process.env.OPENAI_ENABLE_THINKING)) return true
+  // /effort low on a thinking-capable model = skip the thinking phase
+  if (effortLevel === 'low') return false
   // Auto-detect from model name (DeepSeek and MiMo models support thinking mode).
   // Grok is intentionally excluded — Grok reasoning models reason automatically
   // and do NOT require thinking/enable_thinking request body parameters.
@@ -57,6 +62,19 @@ export function resolveOpenAIMaxTokens(
 }
 
 /**
+ * Map our effort level onto Chat Completions `reasoning_effort`. Only the
+ * three classic values are universally accepted; xhigh/max fold into high.
+ */
+export function toChatCompletionsReasoningEffort(
+  effort: unknown,
+): 'low' | 'medium' | 'high' | undefined {
+  if (effort === 'low' || effort === 'medium' || effort === 'high')
+    return effort
+  if (effort === 'xhigh' || effort === 'max') return 'high'
+  return undefined
+}
+
+/**
  * Build the request body for OpenAI chat.completions.create().
  * Extracted for testability — the thinking mode params are injected here.
  *
@@ -77,6 +95,8 @@ export function buildOpenAIRequestBody(params: {
   temperatureOverride?: number
   /** Session-scoped routing key for official OpenAI requests. */
   promptCacheKey?: string
+  /** Omitted when undefined so plain endpoints never see the key. */
+  reasoningEffort?: 'low' | 'medium' | 'high'
 }): ChatCompletionCreateParamsStreaming & {
   thinking?: { type: string }
   enable_thinking?: boolean
@@ -93,12 +113,14 @@ export function buildOpenAIRequestBody(params: {
     maxTokens,
     temperatureOverride,
     promptCacheKey,
+    reasoningEffort,
   } = params
   return {
     model,
     messages,
     max_tokens: maxTokens,
     ...(promptCacheKey && { prompt_cache_key: promptCacheKey }),
+    ...(reasoningEffort && { reasoning_effort: reasoningEffort }),
     ...(tools.length > 0 && {
       tools,
       ...(toolChoice && { tool_choice: toolChoice }),
