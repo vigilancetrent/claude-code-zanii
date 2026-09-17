@@ -46,6 +46,7 @@ import {
   setLeaderTeamName,
   clearLeaderTeamName,
   isTodoV2Enabled,
+  areTodoToolsEnabled,
   type Task,
 } from '../tasks'
 
@@ -642,5 +643,35 @@ describe('concurrent task creation', () => {
     for (let i = 1; i < ids.length; i++) {
       expect(Number(ids[i])).toBeGreaterThan(Number(ids[i - 1]))
     }
+  })
+})
+
+describe('areTodoToolsEnabled', () => {
+  const saved = process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS
+  afterEach(() => {
+    if (saved === undefined) delete process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS
+    else process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS = saved
+  })
+
+  test('enabled for Claude 4.x and non-Claude models', () => {
+    delete process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS
+    expect(areTodoToolsEnabled('claude-opus-4-7')).toBe(true)
+    expect(areTodoToolsEnabled('claude-sonnet-4-5-20250929')).toBe(true)
+    expect(areTodoToolsEnabled('gpt-5')).toBe(true)
+    expect(areTodoToolsEnabled('qwen3.8-27b')).toBe(true)
+  })
+
+  test('disabled for Claude 5+ by model-id heuristic', () => {
+    delete process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS
+    expect(areTodoToolsEnabled('claude-opus-5')).toBe(false)
+    expect(areTodoToolsEnabled('claude-fable-5-1[1m]')).toBe(false)
+    expect(areTodoToolsEnabled('us.anthropic.claude-sonnet-5-v1')).toBe(false)
+  })
+
+  test('env override wins both ways', () => {
+    process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS = '1'
+    expect(areTodoToolsEnabled('claude-opus-5')).toBe(true)
+    process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS = '0'
+    expect(areTodoToolsEnabled('claude-opus-4-7')).toBe(false)
   })
 })

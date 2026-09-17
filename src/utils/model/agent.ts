@@ -1,3 +1,4 @@
+import { isEnvTruthy } from '../envUtils.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
 import { capitalize } from '../stringUtils.js'
 import { MODEL_ALIASES, type ModelAlias } from './aliases.js'
@@ -40,8 +41,16 @@ export function getAgentModel(
   toolSpecifiedModel?: ModelAlias,
   permissionMode?: PermissionMode,
 ): string {
-  if (process.env.CLAUDE_CODE_SUBAGENT_MODEL) {
-    return parseUserSpecifiedModel(process.env.CLAUDE_CODE_SUBAGENT_MODEL)
+  // Upstream precedence: per-call model > frontmatter model > env > parent.
+  // CLAUDE_CODE_SUBAGENT_MODEL_FORCE=1 pins everything to the env model
+  // (forks/`inherit` still follow the parent).
+  const envModel = process.env.CLAUDE_CODE_SUBAGENT_MODEL
+  if (
+    envModel &&
+    (isEnvTruthy(process.env.CLAUDE_CODE_SUBAGENT_MODEL_FORCE) ||
+      (!toolSpecifiedModel && !agentModel))
+  ) {
+    return parseUserSpecifiedModel(envModel)
   }
 
   // Extract Bedrock region prefix from parent model to inherit for subagents.

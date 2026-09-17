@@ -2,6 +2,8 @@ import type { BetaUsage as Usage } from '@anthropic-ai/sdk/resources/beta/messag
 import type { AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS } from 'src/services/analytics/index.js'
 import { logEvent } from 'src/services/analytics/index.js'
 import { setHasUnknownModelCost } from '../bootstrap/state.js'
+import { getAPIProvider } from './model/providers.js'
+import { getSettings_DEPRECATED } from './settings/settings.js'
 import { isFastModeEnabled } from './fastMode.js'
 import {
   CLAUDE_3_5_HAIKU_CONFIG,
@@ -141,7 +143,54 @@ function tokensToUSDCost(modelCosts: ModelCosts, usage: Usage): number {
   )
 }
 
+/** settings.modelPricing lookup: exact id first, then longest prefix. */
+export function getConfiguredModelCosts(
+  model: string,
+  pricing:
+    | Record<
+        string,
+        {
+          input: number
+          output: number
+          cacheRead?: number
+          cacheWrite?: number
+        }
+      >
+    | undefined,
+): ModelCosts | undefined {
+  if (!pricing) return undefined
+  const lower = model.toLowerCase()
+  const key =
+    Object.keys(pricing).find(k => k.toLowerCase() === lower) ??
+    Object.keys(pricing)
+      .filter(k => lower.startsWith(k.toLowerCase()))
+      .sort((a, b) => b.length - a.length)[0]
+  const p = key ? pricing[key] : undefined
+  if (!p) return undefined
+  return {
+    inputTokens: p.input,
+    outputTokens: p.output,
+    promptCacheWriteTokens: p.cacheWrite ?? p.input,
+    promptCacheReadTokens: p.cacheRead ?? p.input / 10,
+    webSearchRequests: 0,
+  }
+}
+
+const ZERO_COST: ModelCosts = {
+  inputTokens: 0,
+  outputTokens: 0,
+  promptCacheWriteTokens: 0,
+  promptCacheReadTokens: 0,
+  webSearchRequests: 0,
+}
+
 export function getModelCosts(model: string, usage: Usage): ModelCosts {
+  const configured = getConfiguredModelCosts(
+    model,
+    getSettings_DEPRECATED()?.modelPricing,
+  )
+  if (configured) return configured
+
   const shortName = getCanonicalName(model)
 
   // Check if this is an Opus 4.6 model with fast mode active.
@@ -155,6 +204,12 @@ export function getModelCosts(model: string, usage: Usage): ModelCosts {
   const costs = MODEL_COSTS[shortName]
   if (!costs) {
     trackUnknownModelCost(model, shortName)
+    // A GPT/Qwen/GLM model priced at Anthropic's default rate is a lie;
+    // report $0 and let the user set settings.modelPricing.
+    const provider = getAPIProvider()
+    if (provider === 'openai' || provider === 'gemini' || provider === 'grok') {
+      return ZERO_COST
+    }
     return (
       MODEL_COSTS[getCanonicalName(getDefaultMainLoopModelSetting())] ??
       DEFAULT_UNKNOWN_MODEL_COST

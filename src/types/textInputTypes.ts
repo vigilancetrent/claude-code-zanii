@@ -167,6 +167,12 @@ export type BaseTextInputProps = {
    */
   readonly onUndo?: () => void
 
+  /** Vim NORMAL Ctrl+R */
+  readonly onRedo?: () => void
+
+  /** Vim NORMAL `/` — open transcript search */
+  readonly onSearch?: () => void
+
   /**
    * Whether to render the text with dim color
    */

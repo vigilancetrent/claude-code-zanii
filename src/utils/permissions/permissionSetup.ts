@@ -6,6 +6,7 @@ import {
   handlePlanModeTransition,
   setHasExitedPlanMode,
   setNeedsAutoModeExitAttachment,
+  getIsNonInteractiveSession,
 } from '../../bootstrap/state.js'
 import type {
   ToolPermissionContext,
@@ -770,6 +771,20 @@ export function initialPermissionModeFromCLI({
     } else {
       orderedModes.push(settingsMode)
     }
+  }
+
+  // Nothing explicit from CLI or settings → auto by default (upstream parity),
+  // unless auto is unavailable. Opt out with `permissions.defaultMode` or
+  // `permissions.disableAutoMode: "disable"`.
+  if (orderedModes.length === 0 && feature('TRANSCRIPT_CLASSIFIER')) {
+    orderedModes.push(
+      autoModeStateModule?.pickImplicitDefaultMode({
+        autoCircuitBroken: autoModeCircuitBrokenSync,
+        autoDisabledBySettings: isAutoModeDisabledBySettings(),
+        isRemote: isEnvTruthy(process.env.CLAUDE_CODE_REMOTE),
+        isNonInteractive: getIsNonInteractiveSession(),
+      }) ?? 'default',
+    )
   }
 
   let result: { mode: PermissionMode; notification?: string } | undefined

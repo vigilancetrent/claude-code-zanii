@@ -4,7 +4,7 @@ const exportCommand = {
   type: 'local-jsx',
   name: 'export',
   description: 'Export the current conversation to a file or clipboard',
-  argumentHint: '[filename]',
+  argumentHint: '[filename.txt|.md|.json]',
   load: () => import('./export.js'),
 } satisfies Command
 

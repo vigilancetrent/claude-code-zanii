@@ -27,8 +27,27 @@ const {
   convertEffortValueToLevel,
   getEffortLevelDescription,
   resolvePickerEffortPersistence,
+  clampEffortToMax,
   EFFORT_LEVELS,
 } = await import('src/utils/effort.js')
+
+describe('clampEffortToMax', () => {
+  test('clamps levels above the cap', () => {
+    expect(clampEffortToMax('max', 'high')).toBe('high')
+    expect(clampEffortToMax('xhigh', 'medium')).toBe('medium')
+  })
+
+  test('leaves levels at or below the cap', () => {
+    expect(clampEffortToMax('low', 'high')).toBe('low')
+    expect(clampEffortToMax('high', 'high')).toBe('high')
+  })
+
+  test('passes through undefined value, undefined cap, and numeric effort', () => {
+    expect(clampEffortToMax(undefined, 'low')).toBeUndefined()
+    expect(clampEffortToMax('max', undefined)).toBe('max')
+    expect(clampEffortToMax(90, 'low')).toBe(90)
+  })
+})
 
 // ─── EFFORT_LEVELS constant ────────────────────────────────────────────
 

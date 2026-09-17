@@ -40,6 +40,13 @@ export function modelSupportsEffort(model: string): boolean {
   if (supported3P !== undefined) {
     return supported3P
   }
+  // OpenAI/Gemini adapters translate effort themselves (reasoning_effort /
+  // thinkingBudget / thinking toggle), so every model there "supports" it.
+  // Grok is left out: xAI rejects reasoning_effort on grok-4.
+  const provider = getAPIProvider()
+  if (provider === 'openai' || provider === 'gemini') {
+    return true
+  }
   if (
     getAPIProvider() === 'openai' &&
     isChatGPTAuthMode() &&
@@ -187,7 +194,21 @@ export function resolveAppliedEffort(
   if (envOverride === null) {
     return undefined
   }
-  return envOverride ?? appStateEffortValue ?? getDefaultEffortForModel(model)
+  return clampEffortToMax(
+    envOverride ?? appStateEffortValue ?? getDefaultEffortForModel(model),
+    getInitialSettings().maxEffortLevel,
+  )
+}
+
+/** settings.maxEffortLevel caps string levels; numeric (ant-only) passes through. */
+export function clampEffortToMax(
+  value: EffortValue | undefined,
+  max: EffortLevel | undefined,
+): EffortValue | undefined {
+  if (value === undefined || max === undefined || typeof value !== 'string') {
+    return value
+  }
+  return EFFORT_LEVELS.indexOf(value) > EFFORT_LEVELS.indexOf(max) ? max : value
 }
 
 /**

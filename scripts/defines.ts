@@ -20,7 +20,9 @@ export function getMacroDefines(): Record<string, string> {
     'MACRO.VERSION': JSON.stringify(pkg.version),
     'MACRO.BUILD_TIME': JSON.stringify(new Date().toISOString()),
     'MACRO.FEEDBACK_CHANNEL': JSON.stringify(''),
-    'MACRO.ISSUES_EXPLAINER': JSON.stringify(''),
+    'MACRO.ISSUES_EXPLAINER': JSON.stringify(
+      'report issues at https://github.com/claude-code-best/claude-code/issues',
+    ),
     'MACRO.NATIVE_PACKAGE_URL': JSON.stringify(''),
     'MACRO.PACKAGE_URL': JSON.stringify(''),
     'MACRO.VERSION_CHANGELOG': JSON.stringify(''),
@@ -39,6 +41,8 @@ export function getMacroDefines(): Record<string, string> {
 export const DEFAULT_BUILD_FEATURES = [
   'BUDDY', // 陪伴宠物角色（Squirtle Waddles）
   'TRANSCRIPT_CLASSIFIER', // 对话分类器，用于标注会话类型
+  'BASH_CLASSIFIER', // auto mode: bash-specific classifier rules + permission UI (classifier already provider-agnostic via sideQuery)
+  'TREE_SITTER_BASH', // pure-TS bash AST (src/utils/bash/bashParser.ts) for permission analysis — no wasm/napi
   'BRIDGE_MODE', // Remote Control / Bridge 模式，远程控制会话
   'AGENT_TRIGGERS_REMOTE', // sessionIngress 模块级 Map 累积（非 GB 级主因）
   'CHICAGO_MCP', // Chicago MCP 集成（内部代号）
@@ -62,7 +66,7 @@ export const DEFAULT_BUILD_FEATURES = [
   // 'HISTORY_SNIP', // 已禁用：snip 功能暂时关闭
   // 'CONTEXT_COLLAPSE', // 已禁用：实现是空壳 stub，启用后会抑制 auto compact 导致上下文管理完全失效
   'MONITOR_TOOL', // Monitor 工具，流式监控后台进程输出
-  // 'FORK_SUBAGENT',            // 已禁用：通过 Agent tool 的特殊方式实现了等效功能，无需再开
+  'FORK_SUBAGENT', // /fork + implicit fork (omit subagent_type); all agents run in background — upstream default since 2026-08-21
   'KAIROS', // Kairos 定时任务系统核心
   'COORDINATOR_MODE', // 多 worker 编排模式（AgentSummary 泄露已在 52b61c2c 修复）
   // 'UDS_INBOX', // 进程间通信管道（inbox/pipe/peers 等命令）构建后 nodejs 环境卡住
@@ -86,7 +90,7 @@ export const DEFAULT_BUILD_FEATURES = [
   // observation accumulation remain operator-discretion concerns.
   'EXPERIMENTAL_SKILL_SEARCH', // 技能搜索（bounded caches 已修复 overflow，内存问题已解决）
   'EXPERIMENTAL_SEARCH_EXTRA_TOOLS', // 工具搜索预取管道（TF-IDF 索引 + inter-turn 异步预取）
-  // 'SKILL_LEARNING',
+  'SKILL_LEARNING', // compiled in; runtime observers stay OFF until `/skill-learning start` (Hermes-style closed learning loop)
   // P3: poor mode
   'POOR', // 穷鬼模式，跳过 extract_memories/prompt_suggestion 减少消耗
   // Team Memory

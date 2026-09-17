@@ -20,6 +20,10 @@ import {
 import type { SDKAssistantMessageError } from '../../../entrypoints/agentSdkTypes.js'
 import type { SystemPrompt } from '../../../utils/systemPromptType.js'
 import type { ThinkingConfig } from '../../../utils/thinking.js'
+import {
+  type EffortValue,
+  resolveAppliedEffort,
+} from '../../../utils/effort.js'
 import type { Options } from '../claude.js'
 import { recordLLMObservation } from '../../../services/langfuse/tracing.js'
 import {
@@ -28,6 +32,7 @@ import {
   convertToolsToLangfuse,
 } from '../../../services/langfuse/convert.js'
 import { streamGeminiGenerateContent } from './client.js'
+import { getGatewayHintHeaders } from '../gatewayHints.js'
 import {
   anthropicMessagesToGemini,
   resolveGeminiModel,
@@ -36,6 +41,20 @@ import {
   anthropicToolChoiceToGemini,
   GEMINI_THOUGHT_SIGNATURE_FIELD,
 } from '@ant/model-provider'
+
+const GEMINI_EFFORT_BUDGETS: Record<string, number> = {
+  low: 1024,
+  medium: 8192,
+  high: 24576,
+  xhigh: 32768,
+  max: -1,
+}
+
+export function effortToGeminiThinkingBudget(
+  effort: EffortValue | undefined,
+): number | undefined {
+  return typeof effort === 'string' ? GEMINI_EFFORT_BUDGETS[effort] : undefined
+}
 
 export async function* queryModelGemini(
   messages: Message[],
@@ -80,11 +99,24 @@ export async function* queryModelGemini(
     )
     const geminiTools = anthropicToolsToGemini(standardTools)
     const toolChoice = anthropicToolChoiceToGemini(options.toolChoice)
+    // /effort → thinkingBudget; an explicit budget from the thinking pipeline
+    // still wins. Gemini's -1 means "dynamic" (model decides).
+    const thinkingBudget =
+      thinkingConfig.type === 'enabled'
+        ? thinkingConfig.budgetTokens
+        : effortToGeminiThinkingBudget(
+            resolveAppliedEffort(options.model, options.effortValue),
+          )
 
     const stream = streamGeminiGenerateContent({
       model: geminiModel,
       signal,
       fetchOverride: options.fetchOverride as typeof fetch | undefined,
+      extraHeaders: getGatewayHintHeaders({
+        querySource: options.querySource,
+        agentId: options.agentId,
+        messages,
+      }),
       body: {
         contents,
         ...(systemInstruction && { systemInstruction }),
@@ -101,9 +133,7 @@ export async function* queryModelGemini(
           ...(thinkingConfig.type !== 'disabled' && {
             thinkingConfig: {
               includeThoughts: true,
-              ...(thinkingConfig.type === 'enabled' && {
-                thinkingBudget: thinkingConfig.budgetTokens,
-              }),
+              ...(thinkingBudget !== undefined && { thinkingBudget }),
             },
           }),
         },

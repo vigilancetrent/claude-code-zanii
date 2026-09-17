@@ -141,6 +141,7 @@ import { clearKeychainCache } from '../../utils/secureStorage/macOsKeychainHelpe
 import { sleep } from '../../utils/sleep.js'
 import {
   ClaudeAuthProvider,
+  getLastInsufficientScope,
   hasMcpDiscoveryButNoToken,
   wrapFetchWithStepUpDetection,
 } from './auth.js'
@@ -1945,6 +1946,15 @@ export const fetchToolsForClient = memoizeWithLRU(
                         elapsedTimeMs: Date.now() - startTime,
                       },
                     })
+                  }
+                  // Auth failure after the SDK's own step-up attempt: name the
+                  // missing scope (if a 403 told us) and point at /mcp.
+                  if (error instanceof UnauthorizedError) {
+                    const scope = getLastInsufficientScope(client.name)
+                    throw new TelemetrySafeError_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS(
+                      `MCP server "${client.name}" rejected ${tool.name} as unauthorized${scope ? ` (missing scope: ${scope})` : ''}. Run /mcp to re-authenticate.`,
+                      'mcp_unauthorized',
+                    )
                   }
                   // Wrap MCP SDK errors so telemetry gets useful context
                   // instead of just "Error" or "McpError" (the constructor

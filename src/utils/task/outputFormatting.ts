@@ -1,17 +1,18 @@
-import { validateBoundedIntEnvVar } from '../envValidation.js'
+import { getSettings_DEPRECATED } from '../settings/settings.js'
+import { resolveOutputLimit } from '../shell/outputLimits.js'
 import { getTaskOutputPath } from './diskOutput.js'
 
 export const TASK_MAX_OUTPUT_UPPER_LIMIT = 160_000
 export const TASK_MAX_OUTPUT_DEFAULT = 32_000
 
 export function getMaxTaskOutputLength(): number {
-  const result = validateBoundedIntEnvVar(
+  return resolveOutputLimit(
+    getSettings_DEPRECATED()?.taskOutputMaxChars,
     'TASK_MAX_OUTPUT_LENGTH',
     process.env.TASK_MAX_OUTPUT_LENGTH,
     TASK_MAX_OUTPUT_DEFAULT,
     TASK_MAX_OUTPUT_UPPER_LIMIT,
   )
-  return result.effective
 }
 
 /**

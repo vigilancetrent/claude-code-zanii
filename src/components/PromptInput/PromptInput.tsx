@@ -1,3 +1,4 @@
+import { requestTranscriptSearch } from '../../utils/transcriptSearchRequest.js';
 import { feature } from 'bun:bundle';
 import chalk from 'chalk';
 import * as path from 'path';
@@ -967,7 +968,7 @@ function PromptInput({
   }, [input.length, addNotification]);
 
   // Initialize input buffer for undo functionality
-  const { pushToBuffer, undo, canUndo, clearBuffer } = useInputBuffer({
+  const { pushToBuffer, undo, canUndo, redo, canRedo, clearBuffer } = useInputBuffer({
     maxBufferSize: 50,
     debounceMs: 1000,
   });
@@ -2392,9 +2393,19 @@ function PromptInput({
     focus: !isSearchingHistory && !isModalOverlayActive && !footerItemSelected,
     showCursor: !footerItemSelected && !isSearchingHistory && !cursorAtImageChip,
     argumentHint: commandArgumentHint,
+    onRedo: canRedo
+      ? () => {
+          const nextState = redo();
+          if (nextState) {
+            trackAndSetInput(nextState.text);
+            setCursorOffset(nextState.cursorOffset);
+          }
+        }
+      : undefined,
+    onSearch: requestTranscriptSearch,
     onUndo: canUndo
       ? () => {
-          const previousState = undo();
+          const previousState = undo({ text: input, cursorOffset, pastedContents });
           if (previousState) {
             trackAndSetInput(previousState.text);
             setCursorOffset(previousState.cursorOffset);

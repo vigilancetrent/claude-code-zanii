@@ -21,6 +21,14 @@ import {
   VALID_INSTALLABLE_SCOPES,
   VALID_UPDATE_SCOPES,
 } from '../../services/plugins/pluginCliCommands.js'
+import {
+  disablePluginOp,
+  enablePluginOp,
+  installPluginOp,
+  type PluginOperationResult,
+  uninstallPluginOp,
+  updatePluginOp,
+} from '../../services/plugins/pluginOperations.js'
 import { getPluginErrorMessage } from '../../types/plugin.js'
 import { errorMessage } from '../../utils/errors.js'
 import { logError } from '../../utils/log.js'
@@ -629,7 +637,7 @@ export async function marketplaceUpdateHandler(
 // plugin install (lines 5690–5721)
 export async function pluginInstallHandler(
   plugin: string,
-  options: { scope?: string; cowork?: boolean },
+  options: { scope?: string; cowork?: boolean; json?: boolean },
 ): Promise<void> {
   if (options.cowork) setUseCoworkPlugins(true)
   const scope = options.scope || 'user'
@@ -659,13 +667,54 @@ export async function pluginInstallHandler(
     scope: scope as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   })
 
+  if (options.json) {
+    return runPluginOpJson(() =>
+      installPluginOp(plugin, scope as 'user' | 'project' | 'local'),
+    )
+  }
   await installPlugin(plugin, scope as 'user' | 'project' | 'local')
+}
+
+/**
+ * `--json` mode: run the operation, print one JSON object, exit 0/1.
+ * Shape mirrors upstream: { ok, message, pluginId?, scope?, errorDetails? }.
+ */
+export async function runPluginOpJson(
+  op: () => Promise<PluginOperationResult>,
+): Promise<never> {
+  try {
+    const r = await op()
+    process.stdout.write(
+      `${JSON.stringify({
+        ok: r.success,
+        message: r.message,
+        pluginId: r.pluginId,
+        scope: r.scope,
+        ...(r.reverseDependents?.length && {
+          reverseDependents: r.reverseDependents,
+        }),
+      })}
+`,
+    )
+    return r.success ? cliOk() : cliError()
+  } catch (error) {
+    process.stdout.write(
+      `${JSON.stringify({ ok: false, message: errorMessage(error) })}
+`,
+    )
+    return cliError()
+  }
 }
 
 // plugin uninstall (lines 5738–5769)
 export async function pluginUninstallHandler(
   plugin: string,
-  options: { scope?: string; cowork?: boolean; keepData?: boolean },
+  options: {
+    scope?: string
+    cowork?: boolean
+    keepData?: boolean
+    json?: boolean
+  },
 ): Promise<void> {
   if (options.cowork) setUseCoworkPlugins(true)
   const scope = options.scope || 'user'
@@ -691,6 +740,15 @@ export async function pluginUninstallHandler(
     scope: scope as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   })
 
+  if (options.json) {
+    return runPluginOpJson(() =>
+      uninstallPluginOp(
+        plugin,
+        scope as 'user' | 'project' | 'local',
+        !options.keepData,
+      ),
+    )
+  }
   await uninstallPlugin(
     plugin,
     scope as 'user' | 'project' | 'local',
@@ -701,7 +759,7 @@ export async function pluginUninstallHandler(
 // plugin enable (lines 5783–5818)
 export async function pluginEnableHandler(
   plugin: string,
-  options: { scope?: string; cowork?: boolean },
+  options: { scope?: string; cowork?: boolean; json?: boolean },
 ): Promise<void> {
   if (options.cowork) setUseCoworkPlugins(true)
   let scope: (typeof VALID_INSTALLABLE_SCOPES)[number] | undefined
@@ -737,13 +795,16 @@ export async function pluginEnableHandler(
       'auto') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   })
 
+  if (options.json) {
+    return runPluginOpJson(() => enablePluginOp(plugin, scope))
+  }
   await enablePlugin(plugin, scope)
 }
 
 // plugin disable (lines 5833–5902)
 export async function pluginDisableHandler(
   plugin: string | undefined,
-  options: { scope?: string; cowork?: boolean; all?: boolean },
+  options: { scope?: string; cowork?: boolean; all?: boolean; json?: boolean },
 ): Promise<void> {
   if (options.all && plugin) {
     cliError('Cannot use --all with a specific plugin')
@@ -801,13 +862,16 @@ export async function pluginDisableHandler(
       'auto') as AnalyticsMetadata_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS,
   })
 
+  if (options.json) {
+    return runPluginOpJson(() => disablePluginOp(plugin!, scope))
+  }
   await disablePlugin(plugin!, scope)
 }
 
 // plugin update (lines 5918–5948)
 export async function pluginUpdateHandler(
   plugin: string,
-  options: { scope?: string; cowork?: boolean },
+  options: { scope?: string; cowork?: boolean; json?: boolean },
 ): Promise<void> {
   if (options.cowork) setUseCoworkPlugins(true)
   const { name, marketplace } = parsePluginIdentifier(plugin)
@@ -836,5 +900,8 @@ export async function pluginUpdateHandler(
     cliError('--cowork can only be used with user scope')
   }
 
+  if (options.json) {
+    return runPluginOpJson(() => updatePluginOp(plugin, scope))
+  }
   await updatePluginCli(plugin, scope)
 }

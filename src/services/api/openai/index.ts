@@ -47,7 +47,10 @@ import {
   isOpenAIThinkingEnabled,
   resolveOpenAIMaxTokens,
   buildOpenAIRequestBody,
+  toChatCompletionsReasoningEffort,
 } from './requestBody.js'
+import { resolveAppliedEffort } from '../../../utils/effort.js'
+import { getGatewayHintHeaders } from '../gatewayHints.js'
 import { recordLLMObservation } from '../../../services/langfuse/tracing.js'
 import {
   convertMessagesToLangfuse,
@@ -293,7 +296,15 @@ export async function* queryModelOpenAI(
     )
 
     // 8. Convert messages and tools to OpenAI format
-    const enableThinking = isOpenAIThinkingEnabled(openaiModel)
+    const appliedEffort = resolveAppliedEffort(
+      options.model,
+      options.effortValue,
+    )
+    const chatReasoningEffort = toChatCompletionsReasoningEffort(appliedEffort)
+    const enableThinking = isOpenAIThinkingEnabled(
+      openaiModel,
+      chatReasoningEffort,
+    )
     const openAIConvertibleMessages = messagesForAPI.filter(
       isOpenAIConvertibleMessage,
     )
@@ -401,8 +412,16 @@ export async function* queryModelOpenAI(
               maxTokens,
               temperatureOverride: options.temperatureOverride,
               promptCacheKey,
+              reasoningEffort: chatReasoningEffort,
             }),
-            { signal },
+            {
+              signal,
+              headers: getGatewayHintHeaders({
+                querySource: options.querySource,
+                agentId: options.agentId,
+                messages,
+              }),
+            },
           ),
           openaiModel,
           { includeCacheWriteTokens: useOfficialOpenAICache },

@@ -17,6 +17,7 @@ import type {
 } from 'openai/resources/chat/completions/completions.mjs'
 import { getGrokClient } from './client.js'
 import { updateOpenAIUsage } from '../openai/openaiShared.js'
+import { getGatewayHintHeaders } from '../gatewayHints.js'
 import {
   anthropicMessagesToOpenAI,
   anthropicToolsToOpenAI,
@@ -115,6 +116,11 @@ export async function* queryModelGrok(
       } as ChatCompletionCreateParamsStreaming,
       {
         signal,
+        headers: getGatewayHintHeaders({
+          querySource: options.querySource,
+          agentId: options.agentId,
+          messages,
+        }),
       },
     )
 

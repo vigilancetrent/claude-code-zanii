@@ -145,6 +145,8 @@ export type CompactProgressEvent =
     }
   | { type: 'compact_start' }
   | { type: 'compact_end' }
+  // Query loop is re-prompting after the model hit its output-token limit.
+  | { type: 'output_limit_resume'; attempt: number }
 
 export type ToolUseContext = {
   options: {
@@ -248,6 +250,8 @@ export type ToolUseContext = {
   setConversationId?: (id: UUID) => void
   agentId?: AgentId // Only set for subagents; use getSessionId() for session ID. Hooks use this to distinguish subagent calls.
   agentType?: string // Subagent type name. For the main thread's --agent type, hooks fall back to getMainThreadAgentType().
+  /** 0 for the main conversation, +1 per nested subagent. Gates AgentTool via CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH. */
+  agentDepth?: number
   /** When true, canUseTool must always be called even when hooks auto-approve.
    *  Used by speculation for overlay file path rewriting. */
   requireCanUseTool?: boolean

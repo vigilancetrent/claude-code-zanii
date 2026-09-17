@@ -16,6 +16,8 @@ import { registerLoopSkill } from './loop.js'
 import { registerDreamSkill } from './dream.js'
 import { registerUpdateConfigSkill } from './updateConfig.js'
 import { registerVerifySkill } from './verify.js'
+import { registerPromptAuditSkill } from './promptAudit.js'
+import { registerDeepResearchSkill } from './deepResearch.js'
 
 /**
  * Initialize all bundled skills.
@@ -43,6 +45,10 @@ export function initBundledSkills(): void {
   registerCronListSkill()
   registerCronDeleteSkill()
   registerDreamSkill()
+  registerPromptAuditSkill()
+  if (feature('WORKFLOW_SCRIPTS')) {
+    registerDeepResearchSkill()
+  }
   if (feature('REVIEW_ARTIFACT')) {
     /* eslint-disable @typescript-eslint/no-require-imports */
     const { registerHunterSkill } = require('./hunter.js')

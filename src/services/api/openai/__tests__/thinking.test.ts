@@ -2,6 +2,7 @@ import { describe, expect, test, beforeEach, afterEach, mock } from 'bun:test'
 import {
   isOpenAIThinkingEnabled,
   buildOpenAIRequestBody,
+  toChatCompletionsReasoningEffort,
 } from '../requestBody.js'
 
 // Re-register envUtils.js with correct isEnvDefinedFalsy and isEnvTruthy to
@@ -308,5 +309,41 @@ describe('buildOpenAIRequestBody — thinking params', () => {
     })
     expect(body.tools).toBeUndefined()
     expect(body.tool_choice).toBeUndefined()
+  })
+})
+
+describe('effort → OpenAI chat completions', () => {
+  test('toChatCompletionsReasoningEffort maps levels and folds xhigh/max', () => {
+    expect(toChatCompletionsReasoningEffort('low')).toBe('low')
+    expect(toChatCompletionsReasoningEffort('medium')).toBe('medium')
+    expect(toChatCompletionsReasoningEffort('high')).toBe('high')
+    expect(toChatCompletionsReasoningEffort('xhigh')).toBe('high')
+    expect(toChatCompletionsReasoningEffort('max')).toBe('high')
+    expect(toChatCompletionsReasoningEffort(undefined)).toBeUndefined()
+    expect(toChatCompletionsReasoningEffort(80)).toBeUndefined()
+  })
+
+  test('reasoning_effort only appears in the body when set', () => {
+    const base = {
+      model: 'gpt-5',
+      messages: [],
+      tools: [],
+      toolChoice: undefined,
+      enableThinking: false,
+      maxTokens: 100,
+    }
+    expect(buildOpenAIRequestBody(base)).not.toHaveProperty('reasoning_effort')
+    expect(
+      buildOpenAIRequestBody({ ...base, reasoningEffort: 'low' }),
+    ).toHaveProperty('reasoning_effort', 'low')
+  })
+
+  test('effort low turns auto-detected thinking off but not an explicit enable', () => {
+    delete process.env.OPENAI_ENABLE_THINKING
+    expect(isOpenAIThinkingEnabled('deepseek-v4', 'low')).toBe(false)
+    expect(isOpenAIThinkingEnabled('deepseek-v4', 'high')).toBe(true)
+    process.env.OPENAI_ENABLE_THINKING = '1'
+    expect(isOpenAIThinkingEnabled('deepseek-v4', 'low')).toBe(true)
+    delete process.env.OPENAI_ENABLE_THINKING
   })
 })

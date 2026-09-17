@@ -3484,6 +3484,7 @@ async function run(): Promise<CommanderCommand> {
         tasks: {},
         agentNameRegistry: new Map(),
         verbose: verbose ?? getGlobalConfig().verbose ?? false,
+        focusMode: false,
         mainLoopModel: initialMainLoopModel,
         mainLoopModelForSession: null,
         isBriefOnly: initialIsBriefOnly,
@@ -5009,6 +5010,7 @@ async function run(): Promise<CommanderCommand> {
     .alias('i')
     .description('Install a plugin from available marketplaces (use plugin@marketplace for specific marketplace)')
     .option('-s, --scope <scope>', 'Installation scope: user, project, or local', 'user')
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string, options: { scope?: string; cowork?: boolean }) => {
       const { pluginInstallHandler } = await import('./cli/handlers/plugins.js');
@@ -5023,6 +5025,7 @@ async function run(): Promise<CommanderCommand> {
     .description('Uninstall an installed plugin')
     .option('-s, --scope <scope>', 'Uninstall from scope: user, project, or local', 'user')
     .option('--keep-data', "Preserve the plugin's persistent data directory (~/.claude/plugins/data/{id}/)")
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(
       async (
@@ -5043,6 +5046,7 @@ async function run(): Promise<CommanderCommand> {
     .command('enable <plugin>')
     .description('Enable a disabled plugin')
     .option('-s, --scope <scope>', `Installation scope: ${VALID_INSTALLABLE_SCOPES.join(', ')} (default: auto-detect)`)
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string, options: { scope?: string; cowork?: boolean }) => {
       const { pluginEnableHandler } = await import('./cli/handlers/plugins.js');
@@ -5055,6 +5059,7 @@ async function run(): Promise<CommanderCommand> {
     .description('Disable an enabled plugin')
     .option('-a, --all', 'Disable all enabled plugins')
     .option('-s, --scope <scope>', `Installation scope: ${VALID_INSTALLABLE_SCOPES.join(', ')} (default: auto-detect)`)
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string | undefined, options: { scope?: string; cowork?: boolean; all?: boolean }) => {
       const { pluginDisableHandler } = await import('./cli/handlers/plugins.js');
@@ -5066,6 +5071,7 @@ async function run(): Promise<CommanderCommand> {
     .command('update <plugin>')
     .description('Update a plugin to the latest version (restart required to apply)')
     .option('-s, --scope <scope>', `Installation scope: ${VALID_UPDATE_SCOPES.join(', ')} (default: user)`)
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string, options: { scope?: string; cowork?: boolean }) => {
       const { pluginUpdateHandler } = await import('./cli/handlers/plugins.js');

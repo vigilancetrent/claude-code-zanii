@@ -42,6 +42,9 @@ import {
  */
 export type TransitionContext = OperatorContext & {
   onUndo?: () => void
+  onRedo?: () => void
+  /** NORMAL-mode `/`: open the transcript search bar. */
+  onSearch?: () => void
   onDotRepeat?: () => void
 }
 
@@ -164,6 +167,9 @@ function handleNormalInput(
   }
   if (input === 'u') {
     return { execute: () => ctx.onUndo?.() }
+  }
+  if (input === '/') {
+    return { execute: () => ctx.onSearch?.() }
   }
   if (input === 'i') {
     return { execute: () => ctx.enterInsert(ctx.cursor.offset) }

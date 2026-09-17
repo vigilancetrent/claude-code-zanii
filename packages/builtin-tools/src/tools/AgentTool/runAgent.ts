@@ -508,7 +508,13 @@ export async function* runAgent({
 
   const resolvedTools = useExactTools
     ? availableTools
-    : resolveAgentTools(agentDefinition, availableTools, isAsync).resolvedTools
+    : resolveAgentTools(
+        agentDefinition,
+        availableTools,
+        isAsync,
+        false,
+        (toolUseContext.agentDepth ?? 0) + 1,
+      ).resolvedTools
 
   const additionalWorkingDirectories = Array.from(
     appState.toolPermissionContext.additionalWorkingDirectories.keys(),

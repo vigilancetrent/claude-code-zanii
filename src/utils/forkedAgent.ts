@@ -448,6 +448,7 @@ export function createSubagentContext(
     // Generate new agentId for subagents (each subagent should have its own ID)
     agentId: overrides?.agentId ?? createAgentId(),
     agentType: overrides?.agentType,
+    agentDepth: (parentContext.agentDepth ?? 0) + 1,
 
     // Create new query tracking chain for subagent with incremented depth
     queryTracking: {

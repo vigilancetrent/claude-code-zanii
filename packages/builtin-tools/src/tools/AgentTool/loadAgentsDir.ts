@@ -91,6 +91,7 @@ const AgentJsonSchema = lazySchema(() =>
     initialPrompt: z.string().optional(),
     memory: z.enum(['user', 'project', 'local']).optional(),
     background: z.boolean().optional(),
+    omitClaudeMd: z.boolean().optional(),
     isolation: (process.env.USER_TYPE === 'ant'
       ? z.enum(['worktree', 'remote'])
       : z.enum(['worktree'])
@@ -503,6 +504,7 @@ export function parseAgentFromJson(
         : {}),
       ...(parsed.initialPrompt ? { initialPrompt: parsed.initialPrompt } : {}),
       ...(parsed.background ? { background: parsed.background } : {}),
+      ...(parsed.omitClaudeMd ? { omitClaudeMd: true } : {}),
       ...(parsed.memory ? { memory: parsed.memory } : {}),
       ...(parsed.isolation ? { isolation: parsed.isolation } : {}),
     }
@@ -590,6 +592,11 @@ export function parseAgentFromMarkdown(
 
     const background =
       backgroundRaw === 'true' || backgroundRaw === true ? true : undefined
+
+    // omitClaudeMd: true skips user/project/local CLAUDE.md for this agent
+    const omitClaudeMdRaw = frontmatter['omitClaudeMd']
+    const omitClaudeMd =
+      omitClaudeMdRaw === 'true' || omitClaudeMdRaw === true ? true : undefined
 
     // Parse memory scope
     const VALID_MEMORY_SCOPES: AgentMemoryScope[] = ['user', 'project', 'local']
@@ -743,6 +750,7 @@ export function parseAgentFromMarkdown(
         : {}),
       ...(maxTurns !== undefined ? { maxTurns } : {}),
       ...(background ? { background } : {}),
+      ...(omitClaudeMd ? { omitClaudeMd } : {}),
       ...(memory ? { memory } : {}),
       ...(isolation ? { isolation } : {}),
     }

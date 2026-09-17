@@ -387,6 +387,7 @@ export const HOOK_EVENTS = [
   'InstructionsLoaded',
   'CwdChanged',
   'FileChanged',
+  'Interrupt',
 ] as const
 
 export const HookEventSchema = lazySchema(() => z.enum(HOOK_EVENTS))
@@ -741,6 +742,16 @@ export const CwdChangedHookInputSchema = lazySchema(() =>
   ),
 )
 
+export const InterruptHookInputSchema = lazySchema(() =>
+  BaseHookInputSchema().and(
+    z.object({
+      hook_event_name: z.literal('Interrupt'),
+      reason: z.enum(['user_cancel']),
+      query_in_flight: z.boolean(),
+    }),
+  ),
+)
+
 export const FileChangedHookInputSchema = lazySchema(() =>
   BaseHookInputSchema().and(
     z.object({
@@ -800,6 +811,7 @@ export const HookInputSchema = lazySchema(() =>
     WorktreeRemoveHookInputSchema(),
     CwdChangedHookInputSchema(),
     FileChangedHookInputSchema(),
+    InterruptHookInputSchema(),
   ]),
 )
 
