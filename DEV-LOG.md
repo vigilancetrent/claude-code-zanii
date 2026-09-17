@@ -1,5 +1,11 @@
 # DEV-LOG
 
+## v2.14.1 README：Why CCZ (2026-09-17)
+
+README 新增 "Why CCZ" 对比表（CCZ vs Claude Code / Codex CLI / OpenCode / Aider，17 个维度，每行对应仓库内已有代码或文档），同步到 npm 包页。仅文档，无代码变更。
+
+---
+
 ## v2.14.0 自我改进闭环 + /run /verify (2026-09-17)
 
 之前明确放弃的两项（"meta-harness 研究级"、"RUN_SKILL_GENERATOR 文件不存在"）现在都做了，取有界版本：
