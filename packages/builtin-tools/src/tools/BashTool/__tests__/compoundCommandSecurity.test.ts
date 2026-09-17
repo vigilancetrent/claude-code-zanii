@@ -83,3 +83,26 @@ describe('compound command security', () => {
     expect(result.behavior).toBe('ask')
   })
 })
+
+describe('nested command substitution', () => {
+  const { hasNestedCommandSubstitution } =
+    require('../bashSecurity') as typeof import('../bashSecurity')
+
+  test('detects $() inside $() and backticks inside $()', () => {
+    expect(hasNestedCommandSubstitution('echo $(dirname $(pwd))')).toBe(true)
+    expect(hasNestedCommandSubstitution('echo $(echo `id`)')).toBe(true)
+    expect(hasNestedCommandSubstitution('echo `echo $(id)`')).toBe(true)
+  })
+
+  test('single-level substitution, escaped chars and plain text are not nested', () => {
+    expect(hasNestedCommandSubstitution('echo $(pwd)')).toBe(false)
+    expect(hasNestedCommandSubstitution('echo $(pwd) $(id)')).toBe(false)
+    expect(hasNestedCommandSubstitution('echo $(x) `id`')).toBe(false)
+    expect(hasNestedCommandSubstitution('ls -la')).toBe(false)
+  })
+
+  test('outside auto mode the verdict is ask, never deny', () => {
+    const r = bashCommandIsSafe_DEPRECATED('echo $(dirname $(pwd))')
+    expect(r.behavior).toBe('ask')
+  })
+})

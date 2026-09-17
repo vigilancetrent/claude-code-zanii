@@ -17,6 +17,19 @@ type SessionStartHooksOptions = {
   forceSyncExecution?: boolean
 }
 
+// The in-flight SessionStart hook run, so Esc at startup can abort it.
+// One at a time is enough: startup, /clear and /resume never overlap.
+let currentSessionStartAbort: AbortController | null = null
+
+/** Abort the running SessionStart hooks (Esc). Returns true if any were running. */
+export function abortSessionStartHooks(): boolean {
+  if (!currentSessionStartAbort || currentSessionStartAbort.signal.aborted) {
+    return false
+  }
+  currentSessionStartAbort.abort('user-cancel')
+  return true
+}
+
 // Set by processSessionStartHooks when a hook emits initialUserMessage;
 // consumed once by takeInitialUserMessage. This side channel avoids changing
 // the Promise<HookResultMessage[]> return type that main.tsx and print.ts
@@ -129,30 +142,36 @@ export async function processSessionStartHooks(
   // Execute SessionStart hooks, ignoring blocking errors
   // Use the provided agentType or fall back to the one stored in bootstrap state
   const resolvedAgentType = agentType ?? getMainThreadAgentType()
-  for await (const hookResult of executeSessionStartHooks(
-    source,
-    sessionId,
-    resolvedAgentType,
-    model,
-    undefined,
-    undefined,
-    forceSyncExecution,
-  )) {
-    if (hookResult.message) {
-      hookMessages.push(hookResult.message)
+  const abort = new AbortController()
+  currentSessionStartAbort = abort
+  try {
+    for await (const hookResult of executeSessionStartHooks(
+      source,
+      sessionId,
+      resolvedAgentType,
+      model,
+      abort.signal,
+      undefined,
+      forceSyncExecution,
+    )) {
+      if (hookResult.message) {
+        hookMessages.push(hookResult.message)
+      }
+      if (
+        hookResult.additionalContexts &&
+        hookResult.additionalContexts.length > 0
+      ) {
+        additionalContexts.push(...hookResult.additionalContexts)
+      }
+      if (hookResult.initialUserMessage) {
+        pendingInitialUserMessage = hookResult.initialUserMessage
+      }
+      if (hookResult.watchPaths && hookResult.watchPaths.length > 0) {
+        allWatchPaths.push(...hookResult.watchPaths)
+      }
     }
-    if (
-      hookResult.additionalContexts &&
-      hookResult.additionalContexts.length > 0
-    ) {
-      additionalContexts.push(...hookResult.additionalContexts)
-    }
-    if (hookResult.initialUserMessage) {
-      pendingInitialUserMessage = hookResult.initialUserMessage
-    }
-    if (hookResult.watchPaths && hookResult.watchPaths.length > 0) {
-      allWatchPaths.push(...hookResult.watchPaths)
-    }
+  } finally {
+    if (currentSessionStartAbort === abort) currentSessionStartAbort = null
   }
 
   if (allWatchPaths.length > 0) {

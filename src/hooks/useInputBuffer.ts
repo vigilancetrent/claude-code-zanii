@@ -21,6 +21,9 @@ export type UseInputBufferResult = {
   ) => void
   undo: () => BufferEntry | undefined
   canUndo: boolean
+  /** Step forward again after an undo (entries survive until the next push). */
+  redo: () => BufferEntry | undefined
+  canRedo: boolean
   clearBuffer: () => void
 }
 
@@ -111,6 +114,16 @@ export function useInputBuffer({
     return undefined
   }, [buffer, currentIndex])
 
+  const redo = useCallback((): BufferEntry | undefined => {
+    const targetIndex = currentIndex + 1
+    const entry = buffer[targetIndex]
+    if (entry) {
+      setCurrentIndex(targetIndex)
+      return entry
+    }
+    return undefined
+  }, [buffer, currentIndex])
+
   const clearBuffer = useCallback(() => {
     setBuffer([])
     setCurrentIndex(-1)
@@ -127,6 +140,8 @@ export function useInputBuffer({
     pushToBuffer,
     undo,
     canUndo,
+    redo,
+    canRedo: currentIndex >= 0 && currentIndex + 1 < buffer.length,
     clearBuffer,
   }
 }
