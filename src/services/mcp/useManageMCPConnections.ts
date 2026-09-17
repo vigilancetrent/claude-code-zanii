@@ -367,6 +367,15 @@ export function useManageMCPConnections(
                 reconnectTimersRef.current.delete(client.name)
               }
 
+              const notifyGaveUp = () =>
+                addNotification({
+                  key: `mcp-disconnected-${client.name}`,
+                  priority: 'high',
+                  text: `MCP server "${client.name}" disconnected and could not reconnect after ${MAX_RECONNECT_ATTEMPTS} attempts · /mcp to reconnect`,
+                  color: 'warning',
+                  timeoutMs: 15000,
+                })
+
               // Attempt reconnection with exponential backoff
               const reconnectWithBackoff = async () => {
                 for (
@@ -422,6 +431,7 @@ export function useManageMCPConnections(
                       )
                       reconnectTimersRef.current.delete(client.name)
                       onConnectionAttempt(result)
+                      notifyGaveUp()
                       return
                     }
                   } catch (error) {
@@ -439,6 +449,7 @@ export function useManageMCPConnections(
                       )
                       reconnectTimersRef.current.delete(client.name)
                       updateServer({ ...client, type: 'failed' })
+                      notifyGaveUp()
                       return
                     }
                   }
@@ -464,6 +475,13 @@ export function useManageMCPConnections(
               void reconnectWithBackoff()
             } else {
               updateServer({ ...client, type: 'failed' })
+              addNotification({
+                key: `mcp-disconnected-${client.name}`,
+                priority: 'high',
+                text: `MCP server "${client.name}" exited · /mcp to reconnect`,
+                color: 'warning',
+                timeoutMs: 15000,
+              })
             }
           }
 

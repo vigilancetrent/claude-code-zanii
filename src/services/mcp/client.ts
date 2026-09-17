@@ -141,6 +141,7 @@ import { clearKeychainCache } from '../../utils/secureStorage/macOsKeychainHelpe
 import { sleep } from '../../utils/sleep.js'
 import {
   ClaudeAuthProvider,
+  getLastInsufficientScope,
   hasMcpDiscoveryButNoToken,
   wrapFetchWithStepUpDetection,
 } from './auth.js'
@@ -1931,6 +1932,19 @@ export const fetchToolsForClient = memoizeWithLRU(
                       `Retrying tool '${tool.name}' after session recovery`,
                     )
                     continue
+                  }
+
+                  // 403 after step-up: name the missing scope and point at /mcp.
+                  if (
+                    error instanceof UnauthorizedError ||
+                    (error instanceof Error &&
+                      /(?:^|\D)403(?:\D|$)/.test(error.message))
+                  ) {
+                    const scope = getLastInsufficientScope(client.name)
+                    throw new TelemetrySafeError_I_VERIFIED_THIS_IS_NOT_CODE_OR_FILEPATHS(
+                      `MCP server "${client.name}" refused ${tool.name} (403${scope ? `, missing scope: ${scope}` : ''}). Run /mcp to re-authenticate.`,
+                      'mcp_403_insufficient_scope',
+                    )
                   }
 
                   // Emit progress when tool fails
