@@ -6,9 +6,34 @@ mock.module('src/utils/debug.ts', debugMock)
 
 const {
   getMaxOutputLength,
+  resolveOutputLimit,
   BASH_MAX_OUTPUT_UPPER_LIMIT,
   BASH_MAX_OUTPUT_DEFAULT,
 } = await import('../outputLimits')
+
+describe('resolveOutputLimit', () => {
+  test('setting beats env', () => {
+    expect(resolveOutputLimit(40_000, 'X', '50000', 30_000, 150_000)).toBe(
+      40_000,
+    )
+  })
+
+  test('setting is clamped to upper limit', () => {
+    expect(resolveOutputLimit(999_999, 'X', undefined, 30_000, 150_000)).toBe(
+      150_000,
+    )
+  })
+
+  test('falls back to env when setting absent or invalid', () => {
+    expect(resolveOutputLimit(undefined, 'X', '50000', 30_000, 150_000)).toBe(
+      50_000,
+    )
+    expect(resolveOutputLimit(-5, 'X', '50000', 30_000, 150_000)).toBe(50_000)
+    expect(resolveOutputLimit('abc', 'X', undefined, 30_000, 150_000)).toBe(
+      30_000,
+    )
+  })
+})
 
 describe('outputLimits constants', () => {
   test('BASH_MAX_OUTPUT_UPPER_LIMIT is 150000', () => {

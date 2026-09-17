@@ -455,6 +455,60 @@ export const SettingsSchema = lazySchema(() =>
         })
         .optional()
         .describe('Git worktree configuration for --worktree flag.'),
+      // Inline tool-output limits (chars). Take precedence over the
+      // BASH_MAX_OUTPUT_LENGTH / TASK_MAX_OUTPUT_LENGTH env vars.
+      bashOutputMaxChars: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Max characters of Bash/PowerShell output kept inline before truncation (default 30000, max 150000)',
+        ),
+      taskOutputMaxChars: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Max characters of background task output kept inline before truncation (default 32000, max 160000)',
+        ),
+      maxSubagentDepth: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Layers of nested subagents allowed below the main conversation (1 = no nesting; default 3). CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH overrides.',
+        ),
+      maxConcurrentSubagents: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Maximum subagents running at once (default 20). CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS overrides.',
+        ),
+      subagentDelegation: z
+        .enum(['disabled', 'explicit', 'proactive'])
+        .optional()
+        .describe(
+          "How freely the main agent spawns subagents: 'disabled' removes the Agent tool, 'explicit' only when the user asks, 'proactive' (default) whenever useful.",
+        ),
+      autoCompactWindow: z
+        .number()
+        .int()
+        .positive()
+        .optional()
+        .describe(
+          'Context window (tokens) auto-compact should assume; smaller than the model window means earlier compaction. Set with /autocompact.',
+        ),
+      toolResultMaxChars: z
+        .record(z.string(), z.number().int().positive())
+        .optional()
+        .describe(
+          'Per-tool cap (by tool name, e.g. "mcp__server__tool") on inline result size before it is saved to disk with a preview',
+        ),
       // Whether to disable all hooks and statusLine
       disableAllHooks: z
         .boolean()
@@ -766,6 +820,13 @@ export const SettingsSchema = lazySchema(() =>
         .optional()
         .catch(undefined)
         .describe('Persisted effort level for supported models.'),
+      maxEffortLevel: z
+        .enum(['low', 'medium', 'high', 'xhigh', 'max'])
+        .optional()
+        .catch(undefined)
+        .describe(
+          'Cap on the effort level sent to any provider; higher /effort choices are clamped down to this.',
+        ),
       advisorModel: z
         .string()
         .optional()

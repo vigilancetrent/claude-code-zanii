@@ -20,6 +20,7 @@ import { logForDebugging } from './debug.js'
 import { getErrnoCode, toError } from './errors.js'
 import { formatFileSize } from './format.js'
 import { logError } from './log.js'
+import { getSettings_DEPRECATED } from './settings/settings.js'
 import { getProjectDir } from './sessionStorage.js'
 import { jsonStringify } from './slowOperations.js'
 
@@ -66,7 +67,10 @@ export function getPersistenceThreshold(
     string,
     number
   > | null>(PERSIST_THRESHOLD_OVERRIDE_FLAG, {})
-  const override = overrides?.[toolName]
+  // settings.toolResultMaxChars[tool] (user intent) beats the GB map.
+  const override =
+    getSettings_DEPRECATED()?.toolResultMaxChars?.[toolName] ??
+    overrides?.[toolName]
   if (
     typeof override === 'number' &&
     Number.isFinite(override) &&
@@ -134,6 +138,8 @@ export async function ensureToolResultsDir(): Promise<void> {
  * @param toolUseId - The ID of the tool use that produced the result
  * @returns Information about the persisted file including filepath and preview
  */
+const MAX_PERSISTED_RESULT_CHARS = 1_000_000_000
+
 export async function persistToolResult(
   content: NonNullable<ToolResultBlockParam['content']>,
   toolUseId: string,
@@ -152,7 +158,14 @@ export async function persistToolResult(
 
   await ensureToolResultsDir()
   const filepath = getToolResultPath(toolUseId, isJson)
-  const contentStr = isJson ? jsonStringify(content, null, 2) : content
+  let contentStr = isJson ? jsonStringify(content, null, 2) : content
+  // ponytail: hard 1 GB cap on what we spill to disk (upstream 2.1.265);
+  // JS strings top out near this anyway, so this is a guard, not a feature.
+  const truncatedAtCap = contentStr.length > MAX_PERSISTED_RESULT_CHARS
+  if (truncatedAtCap) {
+    contentStr = `${contentStr.slice(0, MAX_PERSISTED_RESULT_CHARS)}
+[truncated at 1 GB]`
+  }
 
   // tool_use_id is unique per invocation and content is deterministic for a
   // given id, so skip if the file already exists. This prevents re-writing
