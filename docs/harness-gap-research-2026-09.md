@@ -259,3 +259,40 @@ CCZ's main prompt is the ~2.1.12x text with a few ant-only sections un-gated. Up
 
 - **Phase 13 — prompt**: 13.1 feedback bullet fix; 13.2 add Corrections / Act-when-ready / Delivering-work / exploratory-questions / frontend-verification; 13.3 focus-mode notice (post-boundary, reads `focusMode`); 13.4 Concise built-in output style; 13.5 two missing communication-style lines + "parallel tool calls" + "hook output = user feedback" harness lines.
 - **Phase 14 — UI**: 14.1 "deep in thought" after 45 s; 14.2 "picking the thought back up" via a new `CompactProgressEvent` `output_limit_resume` from the query loop.
+
+---
+
+## 7. What other harnesses have that we don't — "best harness of 2026" pass (added 2026-09-17, fourth round)
+
+Sources: [Every AI coding CLI in 2026 (30+ compared)](https://dev.to/soulentheo/every-ai-coding-cli-in-2026-the-complete-map-30-tools-compared-4gob), [Firecrawl: best AI coding agents — harness, cost, accuracy](https://www.firecrawl.dev/blog/best-ai-coding-agents), [12 agents compared](https://ssojet.com/blog/ai-coding-agents-compared), [Amp manual](https://ampcode.com/manual), [OpenCode docs](https://opencode.ai/docs), [Aider modes](https://aider.chat/docs/usage/modes.html), [Hermes Agent](https://www.nxcode.io/resources/news/hermes-agent-complete-guide-self-improving-ai-2026).
+
+Method: for each mechanism a competitor is known for, check whether CCZ already has it (it usually does — CCZ is unusually complete), and keep only real gaps.
+
+| Mechanism | Who | CCZ today | Verdict |
+|---|---|---|---|
+| Closed learning loop — agent writes reusable skills from its own sessions, memory recall via FTS | **Hermes** (175k★), Windsurf Flows | `src/services/skillLearning/` fully implemented (observers → instincts → skill/agent/command generators, `/skill-learning start`) but **not compiled in** (`SKILL_LEARNING` commented out in `scripts/defines.ts`) | **compile in**, runtime stays opt-in |
+| `/undo` last turn's file edits in one keystroke | OpenCode, Aider | `/rewind` = full checkpoint picker (code / conversation / both) | **add `/undo`** = restore code to last user-turn snapshot, keep conversation |
+| Transparent, correct cost for *any* model, no markup | Amp, Kilo, OpenCode Zen | `/cost` prices unknown models at the *Anthropic default's* rate → wrong numbers for GPT/Qwen/GLM | **add `modelPricing` setting** (same shape as upstream's managed setting) + unknown non-Anthropic model → $0 with a hint |
+| Architect/editor split — expensive planner, cheap executor, any provider | Aider, "the best teams assign models per task" | `opusplan` only (Anthropic aliases) | **add `planModel` setting**: model used while in plan mode, any provider |
+| Repo map — ranked symbol index injected into context so the model knows the codebase shape without grepping | Aider (tree-sitter repo map), Augment Context Engine, Kilo Memory Bank | `CodeGraph` (incremental TS/JS symbol graph, mtime + JSON persistence) exists but is only consulted by `ImpactAnalysisTool` | **add opt-in `repoMap`**: post-boundary prompt section with top exported symbols per file, ~1.5k tokens cap |
+| Librarian — specialist agent for external library docs / examples | Amp | Explore/Plan/general-purpose/verification/guide/statusline | **add built-in `librarian`** read-only agent (WebSearch/WebFetch/Read/Grep/Glob) |
+| Oracle — second-opinion strong model | Amp | `/advisor` ✓ | none |
+| Auto-lint / auto-test after every edit, errors fed back | Aider (`--auto-lint`, `--auto-test`) | doable with a PostToolUse hook, nothing turnkey | **add `postEditChecks: {lint, test}` setting** → synthesized PostToolUse hook on Edit/Write/NotebookEdit |
+| Kernel sandbox (bwrap/seatbelt), network off by default | Codex | `@anthropic-ai/sandbox-runtime` adapter ✓, `allowed_domains` ✓ | none |
+| Cloud/isolated VM per thread (Orbs, Cloud Agents, Codex cloud) | Amp, Cursor, Codex, Devin | self-hosted RCS + daemon + worktrees | out of scope (infra) |
+| Thread sharing / handoff between devices | Amp, OpenCode `/share` | `/share` (ccshare) ✓, RCS ✓ | none |
+| 100-agent swarms | Kimi, Antigravity (93 subagents) | coordinator mode ✓; cap now `CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS` | none |
+| Multi-surface (CLI + web + desktop + mobile) | Amp, Codex, OpenCode | CLI + RCS web + ACP (Zed/Cursor) | none for now |
+| Git-native auto-commit per change | Aider | `/commit`, attribution | skip — conflicts with "confirm before shared-state actions" |
+| Per-hunk accept/reject diff UI | Cursor | whole-edit permission dialog | skip (UI) |
+| Reads competitors' SKILL.md / AGENTS.md | Antigravity, OpenCode, Codex | `/import` (Phase 5) covers Cursor/Codex/Copilot | none |
+
+### Plan — Phase 15
+
+1. `SKILL_LEARNING` compiled in (runtime off until `/skill-learning start`).
+2. `/undo` — restore code to the last user turn's file snapshot.
+3. `modelPricing` setting + $0 fallback for unknown non-Anthropic models.
+4. `planModel` setting honoured by `getRuntimeMainLoopModel` in plan mode.
+5. `repoMap` setting → CodeGraph-backed prompt section.
+6. Built-in `librarian` agent.
+7. `postEditChecks` → synthesized PostToolUse hook.

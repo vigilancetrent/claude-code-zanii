@@ -111,6 +111,16 @@ Each: `src/commands/<name>/{index.ts,<name>.ts}` following `src/commands/effort/
 - [x] **14.1** Spinner shows `deep in thought` once thinking exceeds 45 s.
 - [x] **14.2** Spinner shows `picking the thought back up…` while the query loop resumes after an output-token limit (`CompactProgressEvent: output_limit_resume`).
 
+## Phase 15 — Beat-the-field features (research §7)
+
+- [x] **15.1** Compile in `SKILL_LEARNING` (`scripts/defines.ts`); runtime stays opt-in via `/skill-learning start`.
+- [x] **15.2** `/undo` — `fileHistoryRewind` to the last non-meta user message's snapshot; conversation untouched.
+- [x] **15.3** `modelPricing` setting (`{model: {input, output, cacheRead?, cacheWrite?}}` per Mtok, prefix match) consulted first in `getModelCosts`; unknown model on a non-Anthropic provider → $0.
+- [x] **15.4** `planModel` setting: `getRuntimeMainLoopModel` returns it in plan mode (any provider).
+- [x] **15.5** `repoMap: true` setting → post-boundary `# Repository map` section from CodeGraph exported symbols (cap ~1.5k tokens); builds the graph lazily in the background if not indexed.
+- [x] **15.6** Built-in `librarian` agent (read-only + web) for library docs/examples.
+- [x] **15.7** `postEditChecks: {lint?, test?}` → synthesized PostToolUse hook (matcher `Edit|Write|NotebookEdit`) merged into the hooks snapshot.
+
 ## Explicitly not doing
 
 - Claude 5 model IDs / aliases / pricing (user decision).
@@ -144,6 +154,8 @@ Each: `src/commands/<name>/{index.ts,<name>.ts}` following `src/commands/effort/
 
 | 13 | Prompt: feedback bullet → `/feedback` + issues link (Anthropic Slack ID removed); new `# Corrections` / act-when-ready / exploratory-questions / `# Delivering work` static section; frontend-verification bullet when a browser tool is loaded; `# Focus mode` notice (uncached, post-boundary) driven by `/focus`; built-in `Concise` output style; harness lines (parallel tool calls, hook output = feedback) + communication lines (1–2 sentence end-of-turn, no planning docs) | `outputStylesConcise.test.ts`, `focusView.test.ts` |
 | 14 | Spinner: `deep in thought` after 45 s of thinking; `Picking the thought back up` via `CompactProgressEvent{type:'output_limit_resume'}` from the query loop | — (render-only) |
+
+| 15 | `SKILL_LEARNING` compiled in (opt-in at runtime); `/undo` reverts last turn's edits; `modelPricing` setting + $0 for unknown non-Anthropic models; `planModel` (architect/editor split for any provider); `repoMap` CodeGraph prompt section; built-in `librarian` agent; `postEditChecks` → synthesized PostToolUse hook | `phase15.test.ts` |
 
 Behaviour change to note: subagents may now spawn subagents (3 layers, like upstream). Set `CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH=1` or `maxSubagentDepth: 1` to restore the old no-nesting behaviour. Background agents still never get AgentTool (async allow-list unchanged).
 
