@@ -26,9 +26,16 @@ describe('resolveOpenAIModel', () => {
     Object.assign(process.env, originalEnv)
   })
 
-  test('OPENAI_MODEL env var overrides all', () => {
+  test('OPENAI_MODEL env var is the default for Claude-style names', () => {
     process.env.OPENAI_MODEL = 'my-custom-model'
     expect(resolveOpenAIModel('claude-sonnet-4-6')).toBe('my-custom-model')
+    expect(resolveOpenAIModel('opus[1m]')).toBe('my-custom-model')
+  })
+
+  test('an explicit server model id wins over OPENAI_MODEL (/model picker, --model)', () => {
+    process.env.OPENAI_MODEL = 'glm-4.7-flash'
+    expect(resolveOpenAIModel('qwen3.8-27b')).toBe('qwen3.8-27b')
+    expect(resolveOpenAIModel('gpt-5[1m]')).toBe('gpt-5')
   })
 
   test('ANTHROPIC_DEFAULT_SONNET_MODEL overrides default map', () => {

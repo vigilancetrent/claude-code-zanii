@@ -31,9 +31,74 @@ function wrapFetchForUsage(base: typeof fetch): typeof fetch {
     } catch {
       // Ignore — usage tracking must not affect the request path.
     }
-    return res
+    return coerceStreamErrorBody(res, args[1])
   }
   return wrapped as unknown as typeof fetch
+}
+
+/**
+ * Some gateways/proxies forward a backend 4xx as HTTP 200 with the JSON error
+ * as the body — often still labelled text/event-stream. The SDK's SSE parser
+ * then sees zero events and the caller gets an empty response with no error.
+ * Peek at the first bytes: a body starting with `{` is a JSON error, not SSE;
+ * re-wrap it as a non-2xx Response so the SDK throws a normal APIError.
+ * Real SSE bodies are replayed untouched.
+ */
+export async function coerceStreamErrorBody(
+  res: Response,
+  init: RequestInit | undefined,
+): Promise<Response> {
+  const isStreamingRequest =
+    typeof init?.body === 'string' && init.body.includes('"stream":true')
+  if (!res.ok || !isStreamingRequest || !res.body) return res
+
+  const reader = res.body.getReader()
+  const first = await reader.read()
+  const decoder = new TextDecoder()
+  const head = first.value ? decoder.decode(first.value, { stream: true }) : ''
+  if (!head.trimStart().startsWith('{')) {
+    // Genuine SSE (or empty): hand back a stream that replays what we read.
+    const replay = new ReadableStream<Uint8Array>({
+      start(controller) {
+        if (first.value) controller.enqueue(first.value)
+        if (first.done) controller.close()
+      },
+      async pull(controller) {
+        const { value, done } = await reader.read()
+        if (done) controller.close()
+        else controller.enqueue(value)
+      },
+      cancel() {
+        void reader.cancel()
+      },
+    })
+    return new Response(replay, { status: res.status, headers: res.headers })
+  }
+
+  let text = head
+  for (;;) {
+    const { value, done } = await reader.read()
+    if (done) break
+    text += decoder.decode(value, { stream: true })
+  }
+  let status = 502
+  try {
+    const err = (
+      JSON.parse(text) as { error?: { code?: unknown; status?: unknown } }
+    ).error
+    if (!err) {
+      // JSON but not an error envelope — let the SDK deal with it.
+      return new Response(text, { status: res.status, headers: res.headers })
+    }
+    const code = Number(err.code ?? err.status)
+    if (Number.isInteger(code) && code >= 400 && code <= 599) status = code
+  } catch {
+    // Not JSON after all; pass through with the original status.
+    return new Response(text, { status: res.status, headers: res.headers })
+  }
+  const headers = new Headers(res.headers)
+  headers.set('content-type', 'application/json')
+  return new Response(text, { status, headers })
 }
 
 export function getOpenAIClient(options?: {

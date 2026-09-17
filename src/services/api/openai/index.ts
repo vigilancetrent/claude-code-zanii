@@ -220,12 +220,47 @@ function assembleFinalAssistantOutputs(params: {
  * SSE stream back to Anthropic BetaRawMessageStreamEvent for consumption
  * by the existing query pipeline.
  */
+const IMAGE_REJECTED_RE = /multimodal|image|vision|visual/i
+const IMAGE_OMITTED_NOTE = (model: string) =>
+  `[image omitted: ${model} does not accept image input — describe the image in text or switch to a vision model]`
+
+/** Replace every image block with a text note so text-only models can still answer. */
+export function stripImageBlocks(
+  messages: Message[],
+  model: string,
+): {
+  messages: Message[]
+  stripped: number
+} {
+  let stripped = 0
+  const out = messages.map(m => {
+    const c = m.message?.content
+    if (!Array.isArray(c)) return m
+    const next = c.map(b => {
+      if (
+        b &&
+        typeof b === 'object' &&
+        (b as { type?: string }).type === 'image'
+      ) {
+        stripped++
+        return { type: 'text', text: IMAGE_OMITTED_NOTE(model) }
+      }
+      return b
+    })
+    return next === c
+      ? m
+      : ({ ...m, message: { ...m.message, content: next } } as Message)
+  })
+  return { messages: out, stripped }
+}
+
 export async function* queryModelOpenAI(
   messages: Message[],
   systemPrompt: SystemPrompt,
   tools: Tools,
   signal: AbortSignal,
   options: Options,
+  attempt = 0,
 ): AsyncGenerator<
   StreamEvent | AssistantMessage | SystemAPIErrorMessage,
   void
@@ -585,10 +620,47 @@ export async function* queryModelOpenAI(
       })) {
         yield output
       }
+    } else if (collectedMessages.length === 0) {
+      // Zero events: the endpoint answered with something the SSE parser could
+      // not read (proxy swallowed an error, wrong content-type, empty body).
+      // Never let this end the turn silently.
+      yield createAssistantAPIErrorMessage({
+        content: `API Error: ${openaiModel} returned an empty response (no stream events). Check the endpoint/gateway — it may have returned an error body with HTTP 200.`,
+        apiError: 'api_error',
+        error: new Error('empty stream') as unknown as SDKAssistantMessageError,
+      })
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logForDebugging(`[OpenAI] Error: ${errorMessage}`, { level: 'error' })
+    // Text-only model rejected an image (e.g. "glm-4.7-flash is not a
+    // multimodal model"): drop the images, leave a note, and ask once more so
+    // the user gets an answer that says what happened instead of a dead turn.
+    const status = (error as { status?: unknown })?.status
+    if (
+      attempt === 0 &&
+      (status === 400 || status === 422) &&
+      IMAGE_REJECTED_RE.test(errorMessage)
+    ) {
+      const { messages: withoutImages, stripped } = stripImageBlocks(
+        messages,
+        resolveOpenAIModel(options.model),
+      )
+      if (stripped > 0) {
+        logForDebugging(
+          `[OpenAI] retrying without ${stripped} image block(s): ${errorMessage}`,
+        )
+        yield* queryModelOpenAI(
+          withoutImages,
+          systemPrompt,
+          tools,
+          signal,
+          options,
+          attempt + 1,
+        )
+        return
+      }
+    }
     yield createAssistantAPIErrorMessage({
       content: `API Error: ${errorMessage}`,
       apiError: 'api_error',

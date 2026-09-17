@@ -34,15 +34,24 @@ function getModelFamily(model: string): 'haiku' | 'sonnet' | 'opus' | null {
  * 5. Pass through original model name
  */
 export function resolveOpenAIModel(anthropicModel: string): string {
+  // Strip the [1m] context-window flag — it's a client-side marker consumed
+  // by getContextWindowForModel(), never a valid provider model id.
+  const cleanModel = anthropicModel.replace(/\[1m\]$/i, '')
+  const family = getModelFamily(cleanModel)
+
+  // An explicit server model id (picked in /model from the server's list, or
+  // passed with --model) is not a Claude name: send it as-is. OPENAI_MODEL is
+  // the *default* for Claude-style names, not an override of the user's pick.
+  const isClaudeStyle =
+    family !== null ||
+    /claude/i.test(cleanModel) ||
+    cleanModel in DEFAULT_MODEL_MAP
+  if (!isClaudeStyle) return cleanModel
+
   if (process.env.OPENAI_MODEL) {
-    // Strip the [1m] context-window flag — it's a client-side marker consumed
-    // by getContextWindowForModel(), never a valid provider model id.
     return process.env.OPENAI_MODEL.replace(/\[1m\]$/i, '')
   }
 
-  const cleanModel = anthropicModel.replace(/\[1m\]$/, '')
-
-  const family = getModelFamily(cleanModel)
   if (family) {
     const openaiEnvVar = `OPENAI_DEFAULT_${family.toUpperCase()}_MODEL`
     const openaiOverride = process.env[openaiEnvVar]

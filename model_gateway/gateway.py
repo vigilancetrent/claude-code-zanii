@@ -14,7 +14,8 @@ from collections import OrderedDict
 
 import httpx
 from fastapi import FastAPI, Request
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import JSONResponse, Response, StreamingResponse
+from starlette.background import BackgroundTask
 
 # model alias -> (backend base URL, downstream model name)
 # downstream model = None keeps the requested name (vLLM is fine with that;
@@ -107,22 +108,30 @@ async def chat(req: Request):
     payload = dict(body, model=downstream)
 
     if body.get("stream"):
-        return StreamingResponse(
-            _proxy_stream(base, payload, headers),
-            media_type="text/event-stream",
-        )
+        # Open the upstream stream first so a backend 4xx/5xx comes back with
+        # its real status + JSON body; otherwise the client's SSE parser sees an
+        # HTTP 200 with a JSON error inside and reports nothing at all.
+        req = client.build_request("POST", base + "/chat/completions", json=payload, headers=headers)
+        try:
+            r = await client.send(req, stream=True)
+        except httpx.HTTPError:
+            return JSONResponse({"error": {"message": "backend unreachable", "type": "api_error"}}, status_code=502)
+        if r.status_code >= 400:
+            data = await r.aread()
+            await r.aclose()
+            return Response(content=data, status_code=r.status_code, media_type=r.headers.get("content-type", "application/json"))
+        return StreamingResponse(_relay(r), media_type="text/event-stream", background=BackgroundTask(r.aclose))
 
     r = await client.post(base + "/chat/completions", json=payload, headers=headers)
     return JSONResponse(r.json(), status_code=r.status_code)
 
 
-async def _proxy_stream(base, payload, headers):
+async def _relay(r):
     try:
-        async with client.stream("POST", base + "/chat/completions", json=payload, headers=headers) as r:
-            async for chunk in r.aiter_bytes():
-                yield chunk
+        async for chunk in r.aiter_bytes():
+            yield chunk
     except httpx.HTTPError:
-        yield b'data: {"error":{"message":"backend unreachable"}}\n\n'
+        yield b'data: {"error":{"message":"backend connection lost"}}\n\n'
 
 if __name__ == "__main__":
     import sys

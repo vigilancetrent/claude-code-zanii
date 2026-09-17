@@ -1,5 +1,14 @@
 # DEV-LOG
 
+## v2.12.2 图片粘贴无响应 + /model 被 OPENAI_MODEL 覆盖 (2026-09-17)
+
+- `model_gateway/gateway.py` 流式路径曾把后端 4xx 以 HTTP 200 转发（body 是 JSON error），OpenAI SDK 解析不到任何 SSE 事件 → 整轮无输出。现在先打开上游流、按真实状态码返回错误。
+- `src/services/api/openai/client.ts#coerceStreamErrorBody`：对流式请求偷看首字节，`{` 开头的 JSON error 重新包装成 4xx Response 让 SDK 正常抛错；真正的 SSE 原样回放。
+- `src/services/api/openai/index.ts`：零事件流 → 显式 "empty response" 错误；400 且提示 multimodal/image/vision → `stripImageBlocks` 去掉全部图片块（留 `[image omitted: …]` 注记）后重试一次，纯文本模型（glm-4.7-flash、llama.cpp 上的 qwen3.8-27b）会回答"我看不到图片"而不是死转。
+- `modelMapping.ts#resolveOpenAIModel`：`OPENAI_MODEL` 只作为 Claude 风格模型名的默认映射；`/model` 选中的服务器模型 id 或 `--model` 现在真正生效（此前状态栏显示 qwen 但请求仍发往 glm）。
+
+---
+
 ## v2.12.1 ripgrep 自愈 (2026-09-17)
 
 npm ≥ 11 默认跳过 postinstall（`allow-scripts`），平台 ripgrep 二进制可能缺失。`src/utils/ripgrep.ts#ensureRipgrepAvailable` 在启动时后台、首次 Grep 时同步地运行同一个 `scripts/postinstall.cjs` 下载它，失败则回退系统 `rg`。README 相应精简。
