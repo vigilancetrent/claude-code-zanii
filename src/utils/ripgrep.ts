@@ -55,7 +55,12 @@ export const getRipgrepConfig = memoize((): RipgrepConfig => {
     }
   }
 
-  const rgRoot = path.resolve(__dirname, 'vendor', 'ripgrep')
+  // dist/vendor/ripgrep in a build; src/utils/vendor/ripgrep when running
+  // from source (distRoot is the project root there, not src/).
+  const rgRoot =
+    path.basename(__dirname) === 'dist'
+      ? path.resolve(__dirname, 'vendor', 'ripgrep')
+      : path.resolve(__dirname, 'src', 'utils', 'vendor', 'ripgrep')
   const command =
     process.platform === 'win32'
       ? path.resolve(rgRoot, `${process.arch}-win32`, 'rg.exe')

@@ -1,5 +1,11 @@
 # DEV-LOG
 
+## v2.12.4 移除 postinstall (2026-09-17)
+
+npm ≥ 11 对任何声明 `postinstall` 的包都会打 `allow-scripts` 警告。ripgrep 已在首次使用时自动下载（`ensureRipgrepAvailable`），Chrome native host 在启用 Chrome 集成时注册，所以 `postinstall` 已无必要，直接删除；保留 `npm run setup:ripgrep` / `setup:chrome` 作为显式入口。顺带修正源码模式下 rg 路径（`src/utils/vendor/ripgrep`，此前错误地找 `<root>/vendor/ripgrep`）。剩余的一行警告来自依赖 `@claude-code-best/mcp-chrome-bridge` 自己的脚本，仅影响可选的 12306 桥接。
+
+---
+
 ## v2.12.3 reasoning_effort 自适应 (2026-09-17)
 
 OpenAI 兼容服务器对 `reasoning_effort` 的合法取值各不相同（llama.cpp 上 Qwen 模板只接受 xhigh/medium/low，发 `high` 直接 Jinja 500）。`requestBody.ts`：被拒后解析错误文本里的 "Supported types are …"，按 model 记住最接近的取值（同距离取更高档）或不再发送该字段，然后重试一次；后续请求直接用记住的值。

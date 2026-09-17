@@ -67,11 +67,7 @@ ccz-bun    # Bun entry
 ccz update
 ```
 
-npm ≥ 11 may warn about `allow-scripts` and skip CCZ's postinstall. That's fine: CCZ fetches the ripgrep binary for your platform itself on first use (or uses a system `rg` if you have one). To silence the warning and let install scripts run up front:
-
-```sh
-npm config set allow-scripts=claude-code-zanii,@claude-code-best/mcp-chrome-bridge --location=user
-```
+CCZ has no install scripts: the ripgrep binary for your platform is fetched on first use (or a system `rg` is used), and the Chrome native host is registered when you enable Chrome integration. If npm still prints an `allow-scripts` warning it is for the optional `@claude-code-best/mcp-chrome-bridge` dependency's own script — safe to ignore; run `npm run setup:chrome` inside the package only if you use the standalone bridge (`mcp-chrome` on port 12306).
 
 If install or update misbehaves: `npm rm -g claude-code-best && npm i -g claude-code-zanii@latest`.
 
