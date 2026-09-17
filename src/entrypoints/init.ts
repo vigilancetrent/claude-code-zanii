@@ -1,3 +1,4 @@
+import { ensureRipgrepAvailable } from '../utils/ripgrep.js'
 import { profileCheckpoint } from '../utils/startupProfiler.js'
 import '../bootstrap/state.js'
 import '../utils/config.js'
@@ -64,6 +65,9 @@ import { setThemeConfigCallbacks } from '@anthropic/ink'
 let telemetryInitialized = false
 
 export const init = memoize(async (): Promise<void> => {
+  // Self-heal a skipped postinstall (npm >= 11 allow-scripts): fetch ripgrep
+  // in the background so the first Grep doesn't have to wait for it.
+  void ensureRipgrepAvailable().catch(() => {})
   const initStartTime = Date.now()
   logForDiagnosticsNoPII('info', 'init_started')
   profileCheckpoint('init_function_start')
