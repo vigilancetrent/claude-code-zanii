@@ -112,7 +112,9 @@ export function resolveBuiltinWithFallback(
     mode: 'builtin',
     command: builtinPath,
     args: [],
-    note: `no ripgrep available on ${p}; install ripgrep via apt/pkg/brew`,
+    // npm ≥ 11 skips postinstall unless the package is allow-listed, which is
+    // exactly the step that downloads rg — say how to run it by hand.
+    note: `no ripgrep available on ${p}; run \`node ${path.join(distRoot, '..', 'scripts', 'postinstall.cjs')}\` to download it, or install ripgrep via apt/pkg/brew`,
   }
 }
 
