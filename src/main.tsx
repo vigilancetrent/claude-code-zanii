@@ -95,6 +95,7 @@ import {
   resolveFastModeStatusFromCache,
 } from './utils/fastMode.js';
 import { applyConfigEnvironmentVariables } from './utils/managedEnv.js';
+import { handleMainSigint } from './utils/chatgptLoginSignals.js';
 import { createSystemMessage, createUserMessage } from './utils/messages.js';
 import { getPlatform } from './utils/platform.js';
 import { getBaseRenderOptions } from './utils/renderOptions.js';
@@ -763,15 +764,7 @@ export async function main() {
       // workflow 未启用或已卸载——忽略
     }
   });
-  process.on('SIGINT', () => {
-    // In print mode, print.ts registers its own SIGINT handler that aborts
-    // the in-flight query and calls gracefulShutdown; skip here to avoid
-    // preempting it with a synchronous process.exit().
-    if (process.argv.includes('-p') || process.argv.includes('--print')) {
-      return;
-    }
-    process.exit(0);
-  });
+  process.on('SIGINT', handleMainSigint);
   profileCheckpoint('main_warning_handler_initialized');
 
   // Check for cc:// or cc+unix:// URL in argv — rewrite so the main command
@@ -3484,6 +3477,7 @@ async function run(): Promise<CommanderCommand> {
         tasks: {},
         agentNameRegistry: new Map(),
         verbose: verbose ?? getGlobalConfig().verbose ?? false,
+        focusMode: false,
         mainLoopModel: initialMainLoopModel,
         mainLoopModelForSession: null,
         isBriefOnly: initialIsBriefOnly,
@@ -4868,7 +4862,8 @@ async function run(): Promise<CommanderCommand> {
 
   auth
     .command('login')
-    .description('Sign in to your Anthropic account')
+    .description('Sign in to your account')
+    .option('--chatgpt', 'Continue with ChatGPT (account eligibility checked by OpenAI)')
     .option('--email <email>', 'Pre-populate email address on the login page')
     .option('--sso', 'Force SSO login flow')
     .option('--console', 'Use Anthropic Console (API usage billing) instead of Claude subscription')
@@ -4879,14 +4874,16 @@ async function run(): Promise<CommanderCommand> {
         sso,
         console: useConsole,
         claudeai,
+        chatgpt,
       }: {
         email?: string;
         sso?: boolean;
         console?: boolean;
         claudeai?: boolean;
+        chatgpt?: boolean;
       }) => {
         const { authLogin } = await import('./cli/handlers/auth.js');
-        await authLogin({ email, sso, console: useConsole, claudeai });
+        await authLogin({ email, sso, console: useConsole, claudeai, chatgpt });
       },
     );
 
@@ -4902,7 +4899,7 @@ async function run(): Promise<CommanderCommand> {
 
   auth
     .command('logout')
-    .description('Log out from your Anthropic account')
+    .description('Log out from your account')
     .action(async () => {
       const { authLogout } = await import('./cli/handlers/auth.js');
       await authLogout();
@@ -5009,6 +5006,7 @@ async function run(): Promise<CommanderCommand> {
     .alias('i')
     .description('Install a plugin from available marketplaces (use plugin@marketplace for specific marketplace)')
     .option('-s, --scope <scope>', 'Installation scope: user, project, or local', 'user')
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string, options: { scope?: string; cowork?: boolean }) => {
       const { pluginInstallHandler } = await import('./cli/handlers/plugins.js');
@@ -5023,6 +5021,7 @@ async function run(): Promise<CommanderCommand> {
     .description('Uninstall an installed plugin')
     .option('-s, --scope <scope>', 'Uninstall from scope: user, project, or local', 'user')
     .option('--keep-data', "Preserve the plugin's persistent data directory (~/.claude/plugins/data/{id}/)")
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(
       async (
@@ -5043,6 +5042,7 @@ async function run(): Promise<CommanderCommand> {
     .command('enable <plugin>')
     .description('Enable a disabled plugin')
     .option('-s, --scope <scope>', `Installation scope: ${VALID_INSTALLABLE_SCOPES.join(', ')} (default: auto-detect)`)
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string, options: { scope?: string; cowork?: boolean }) => {
       const { pluginEnableHandler } = await import('./cli/handlers/plugins.js');
@@ -5055,6 +5055,7 @@ async function run(): Promise<CommanderCommand> {
     .description('Disable an enabled plugin')
     .option('-a, --all', 'Disable all enabled plugins')
     .option('-s, --scope <scope>', `Installation scope: ${VALID_INSTALLABLE_SCOPES.join(', ')} (default: auto-detect)`)
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string | undefined, options: { scope?: string; cowork?: boolean; all?: boolean }) => {
       const { pluginDisableHandler } = await import('./cli/handlers/plugins.js');
@@ -5066,6 +5067,7 @@ async function run(): Promise<CommanderCommand> {
     .command('update <plugin>')
     .description('Update a plugin to the latest version (restart required to apply)')
     .option('-s, --scope <scope>', `Installation scope: ${VALID_UPDATE_SCOPES.join(', ')} (default: user)`)
+    .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(async (plugin: string, options: { scope?: string; cowork?: boolean }) => {
       const { pluginUpdateHandler } = await import('./cli/handlers/plugins.js');

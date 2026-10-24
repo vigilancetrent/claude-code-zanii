@@ -24,6 +24,8 @@ export type HookStartedEvent = {
   hookId: string
   hookName: string
   hookEvent: string
+  /** Backgrounded hook: its 'response' only arrives when the process exits. */
+  async?: boolean
 }
 
 export type HookProgressEvent = {
@@ -94,6 +96,7 @@ export function emitHookStarted(
   hookId: string,
   hookName: string,
   hookEvent: string,
+  async = false,
 ): void {
   if (!shouldEmit(hookEvent)) return
 
@@ -102,6 +105,7 @@ export function emitHookStarted(
     hookId,
     hookName,
     hookEvent,
+    ...(async && { async }),
   })
 }
 

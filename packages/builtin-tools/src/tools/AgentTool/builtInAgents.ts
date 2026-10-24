@@ -12,7 +12,7 @@ import type { AgentDefinition } from './loadAgentsDir.js'
 
 export function areExplorePlanAgentsEnabled(): boolean {
   if (feature('BUILTIN_EXPLORE_PLAN_AGENTS')) {
-    return true
+    return !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS)
   }
   return false
 }

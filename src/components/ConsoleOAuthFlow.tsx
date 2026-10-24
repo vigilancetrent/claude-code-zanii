@@ -9,12 +9,11 @@ import { setClipboard, useTerminalNotification, Box, Link, Text, KeyboardShortcu
 import { useKeybinding } from '../keybindings/useKeybinding.js';
 import { getSSLErrorHint } from '@ant/model-provider';
 import { sendNotification } from '../services/notifier.js';
-import {
-  completeChatGPTDeviceLogin,
-  removeChatGPTAuth,
-  requestChatGPTDeviceCode,
-  type ChatGPTDeviceCode,
-} from '../services/api/openai/chatgptAuth.js';
+import { startChatGPTLogin } from '../services/api/openai/chatgptAuth.js';
+import { activateChatGPTSubscription } from '../services/api/openai/chatgptActivation.js';
+import { clearChatGPTModelCatalog, fetchChatGPTModelCatalog } from '../services/api/openai/chatgptModels.js';
+import { CHATGPT_USAGE_URL } from '../utils/model/chatgptModels.js';
+import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js';
 import { clearOpenAIClientCache } from '../services/api/openai/client.js';
 import { OAuthService } from '../services/oauth/index.js';
 import { getOauthAccountInfo, validateForceLoginOrg } from '../utils/auth.js';
@@ -57,8 +56,8 @@ type OAuthStatus =
   | {
       state: 'chatgpt_subscription';
       phase: 'requesting' | 'waiting';
-      deviceCode?: ChatGPTDeviceCode;
-    } // ChatGPT account subscription via Codex OAuth device flow
+      authorizationUrl?: string;
+    }
   | {
       state: 'gemini_api';
       baseUrl: string;
@@ -76,7 +75,7 @@ type OAuthStatus =
   | { state: 'waiting_for_login'; url: string } // Browser opened, waiting for user to login
   | { state: 'creating_api_key' } // Got access token, creating API key
   | { state: 'about_to_retry'; nextState: OAuthStatus }
-  | { state: 'success'; token?: string }
+  | { state: 'success'; token?: string; chatgptPlanUsage?: boolean }
   | {
       state: 'error';
       message: string;
@@ -111,6 +110,57 @@ export function ConsoleOAuthFlow({
     }
     return { state: 'idle' };
   });
+  const chatgptOnDoneRef = useRef(onDone);
+  useEffect(() => {
+    chatgptOnDoneRef.current = onDone;
+  }, [onDone]);
+
+  useEffect(() => {
+    if (oauthStatus.state !== 'chatgpt_subscription') return;
+    const controller = new AbortController();
+    let cancelLogin: (() => void) | undefined;
+    async function runLogin() {
+      try {
+        clearChatGPTModelCatalog();
+        const login = await startChatGPTLogin(controller.signal);
+        cancelLogin = login.cancel;
+        if (controller.signal.aborted) {
+          login.cancel();
+          return;
+        }
+        setOAuthStatus({ state: 'chatgpt_subscription', phase: 'waiting', authorizationUrl: login.authorizationUrl });
+        void openBrowser(login.authorizationUrl).catch(() => undefined);
+        const tokens = await login.complete();
+        controller.signal.throwIfAborted();
+        if (!tokens.planUsageEnabled) {
+          throw new Error(
+            'Signed in, but ChatGPT plan usage was not enabled. Reconnect and allow plan usage to run models.',
+          );
+        }
+        await fetchChatGPTModelCatalog(tokens, controller.signal);
+        controller.signal.throwIfAborted();
+        activateChatGPTSubscription();
+        if (!getGlobalConfig().chatgptPlanUsageNoticeSeen) {
+          setOAuthStatus({ state: 'success', chatgptPlanUsage: true });
+        } else {
+          setOAuthStatus({ state: 'success' });
+          chatgptOnDoneRef.current();
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setOAuthStatus({
+          state: 'error',
+          message: error instanceof Error ? error.message : 'ChatGPT sign-in failed. Please try again.',
+          toRetry: { state: 'chatgpt_subscription', phase: 'requesting' },
+        });
+      }
+    }
+    void runLogin();
+    return () => {
+      controller.abort();
+      cancelLogin?.();
+    };
+  }, [oauthStatus.state]);
 
   const [pastedCode, setPastedCode] = useState('');
   const [cursorOffset, setCursorOffset] = useState(0);
@@ -148,6 +198,9 @@ export function ConsoleOAuthFlow({
   useKeybinding(
     'confirm:yes',
     () => {
+      if (oauthStatus.state === 'success' && oauthStatus.chatgptPlanUsage) {
+        saveGlobalConfig(current => ({ ...current, chatgptPlanUsageNoticeSeen: true }));
+      }
       logEvent('tengu_oauth_success', { loginWithClaudeAi });
       onDone();
     },
@@ -476,7 +529,7 @@ function OAuthStatusMessage({
                 {
                   label: (
                     <Text>
-                      ChatGPT account with subscription · <Text dimColor>Plus, Pro, Business, Edu, or Enterprise</Text>
+                      Continue with ChatGPT · <Text dimColor>Use your eligible ChatGPT plan</Text>
                       {'\n'}
                     </Text>
                   ),
@@ -911,11 +964,9 @@ function OAuthStatusMessage({
               process.env[k] = v;
             }
           }
-          // Drop any cached OpenAI client so the next request rebuilds it
-          // with the new env vars. Also clear ChatGPT auth file so a prior
-          // ChatGPT Subscription login can't leak into the OpenAI Compatible path.
+          // Auth mode isolates this provider from saved ChatGPT credentials.
           clearOpenAIClientCache();
-          void removeChatGPTAuth().catch(() => {});
+          clearChatGPTModelCatalog();
           setOAuthStatus({ state: 'success' });
           void onDone();
         }
@@ -1014,93 +1065,29 @@ function OAuthStatusMessage({
     }
 
     case 'chatgpt_subscription': {
-      const status = oauthStatus as {
-        state: 'chatgpt_subscription';
-        phase: 'requesting' | 'waiting';
-        deviceCode?: ChatGPTDeviceCode;
-      };
-      const startedRef = useRef(false);
-
-      useEffect(() => {
-        if (startedRef.current) return;
-        startedRef.current = true;
-        let cancelled = false;
-        const controller = new AbortController();
-        async function runLogin() {
-          try {
-            const deviceCode = await requestChatGPTDeviceCode();
-            if (cancelled) return;
-            setOAuthStatus({
-              state: 'chatgpt_subscription',
-              phase: 'waiting',
-              deviceCode,
-            });
-            void openBrowser(deviceCode.verificationUrl);
-            await completeChatGPTDeviceLogin(deviceCode, controller.signal);
-            if (cancelled) return;
-            const env: Record<string, string> = {
-              OPENAI_AUTH_MODE: 'chatgpt',
-            };
-            const settingsUpdate: Parameters<typeof updateSettingsForSource>[1] = {
-              modelType: 'openai',
-              env,
-            };
-            const { error } = updateSettingsForSource('userSettings', settingsUpdate);
-            if (error) {
-              throw new Error('Failed to save settings. Please try again.');
-            }
-            for (const [k, v] of Object.entries(env)) process.env[k] = v;
-            // Drop any cached OpenAI client built from prior OpenAI Compatible
-            // env vars; the ChatGPT Subscription path bypasses the SDK client
-            // entirely (uses createChatGPTResponsesStream) but a stale cached
-            // client would still be picked up by sideQuery.
-            clearOpenAIClientCache();
-            setOAuthStatus({ state: 'success' });
-            void onDone();
-          } catch (err) {
-            if (cancelled) return;
-            setOAuthStatus({
-              state: 'error',
-              message: (err as Error).message,
-              toRetry: {
-                state: 'chatgpt_subscription',
-                phase: 'requesting',
-              },
-            });
-          }
-        }
-        void runLogin();
-        return () => {
-          cancelled = true;
-          controller.abort();
-        };
-      }, [setOAuthStatus, onDone]);
-
       return (
         <Box flexDirection="column" gap={1}>
           <Text bold>ChatGPT Account Setup</Text>
-          {status.phase === 'requesting' && (
+          {oauthStatus.phase === 'requesting' && (
             <Box>
               <Spinner />
-              <Text>Requesting sign-in code…</Text>
+              <Text>Preparing secure browser sign-in…</Text>
             </Box>
           )}
-          {status.phase === 'waiting' && status.deviceCode && (
+          {oauthStatus.phase === 'waiting' && oauthStatus.authorizationUrl && (
             <Box flexDirection="column" gap={1}>
               <Text>Open this link and sign in with your ChatGPT account:</Text>
-              <Link url={status.deviceCode.verificationUrl}>
-                <Text dimColor>{status.deviceCode.verificationUrl}</Text>
+              <Link url={oauthStatus.authorizationUrl}>
+                <Text dimColor>{oauthStatus.authorizationUrl}</Text>
               </Link>
-              <Text>
-                Enter code: <Text bold>{status.deviceCode.userCode}</Text>
-              </Text>
+              <Text>Allow ChatGPT plan usage to run models in this app.</Text>
               <Box>
                 <Spinner />
                 <Text>Waiting for ChatGPT authorization…</Text>
               </Box>
             </Box>
           )}
-          <Text dimColor>Esc to go back. Device codes expire after 15 minutes.</Text>
+          <Text dimColor>Esc to cancel. Return here after approving access in your browser.</Text>
         </Box>
       );
     }
@@ -1480,10 +1467,9 @@ function OAuthStatusMessage({
               process.env[k] = v;
             }
           }
-          // Drop any cached OpenAI client and ChatGPT auth so the new
-          // provider/credentials take effect on the next request.
+          // The selected auth mode determines which credentials may be used.
           clearOpenAIClientCache();
-          void removeChatGPTAuth().catch(() => {});
+          clearChatGPTModelCatalog();
           logEvent('tengu_china_login_success', {});
           setOAuthStatus({ state: 'success' });
           void onDone();
@@ -1676,7 +1662,16 @@ function OAuthStatusMessage({
         <Box flexDirection="column">
           {mode === 'setup-token' && oauthStatus.token ? null : (
             <>
-              {getOauthAccountInfo()?.emailAddress ? (
+              {oauthStatus.chatgptPlanUsage ? (
+                <Box flexDirection="column" gap={1}>
+                  <Text bold>You're using your ChatGPT plan</Text>
+                  <Text>
+                    Eligible requests in this app use your ChatGPT plan or credits. OpenAI checks model access and usage
+                    limits.
+                  </Text>
+                  <Link url={CHATGPT_USAGE_URL}>Manage usage</Link>
+                </Box>
+              ) : getOauthAccountInfo()?.emailAddress ? (
                 <Text dimColor>
                   Logged in as <Text>{getOauthAccountInfo()?.emailAddress}</Text>
                 </Text>

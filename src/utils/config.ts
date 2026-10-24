@@ -413,6 +413,7 @@ export type GlobalConfig = {
   // Effort callout tracking - shown once for Opus 4.6 users
   effortCalloutDismissed?: boolean // v1 - legacy, read to suppress v2 for Pro users who already saw it
   effortCalloutV2Dismissed?: boolean
+  chatgptPlanUsageNoticeSeen?: boolean
 
   // Remote callout tracking - shown once before first bridge enable
   remoteDialogSeen?: boolean

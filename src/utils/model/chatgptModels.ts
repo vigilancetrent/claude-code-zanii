@@ -2,9 +2,24 @@ export type ChatGPTCodexModelOption = {
   value: string
   label: string
   description: string
+  contextWindow?: number
+  maxOutputTokens?: number
 }
 
-/** Default ChatGPT/Codex model (newest frontier). */
+let discoveredModels: ChatGPTCodexModelOption[] = []
+export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage'
+
+export function setChatGPTModelCatalog(
+  models: ChatGPTCodexModelOption[],
+): void {
+  discoveredModels = models
+}
+
+export function getChatGPTModelCatalog(): ChatGPTCodexModelOption[] {
+  return discoveredModels
+}
+
+/** Compatibility defaults used before the account catalog has loaded. */
 export const CHATGPT_CODEX_DEFAULT_MODEL = 'gpt-5.6-sol'
 export const CHATGPT_CODEX_BALANCED_MODEL = 'gpt-5.6-terra'
 /** Fast/small default for lighter tasks. */
@@ -29,14 +44,15 @@ export function resolveChatGPTCodexModelForTier(params: {
     params.taskOverride ??
     params.tierOverride ??
     (params.isChatGPTAuth
-      ? CHATGPT_CODEX_MODELS_BY_TIER[params.tier]
+      ? (discoveredModels[0]?.value ??
+        CHATGPT_CODEX_MODELS_BY_TIER[params.tier])
       : undefined)
   )
 }
 
 /**
- * ChatGPT OAuth / Codex subscription practical context window.
- * Codex with ChatGPT login is product-limited to ~272k (not the full API 1.05M).
+ * Compatibility budgeting estimate when the account catalog omits limits.
+ * This estimate does not describe subscription entitlement or remaining quota.
  */
 export const CHATGPT_OAUTH_CONTEXT_WINDOW = 272_000
 
@@ -136,15 +152,19 @@ export function isChatGPTCodexReasoningModel(model: string): boolean {
 }
 
 /**
- * Context window for GPT-5.6 models used by CCB for local budgeting
- * (status bar %, auto-compact thresholds). Not sent as a request field.
- *
- * - ChatGPT OAuth / Codex backend: 272k (subscription product limit)
- * - API key / OpenAI-compatible using gpt-5.6-*: 1.05M (model card)
+ * Account metadata or compatibility estimates for local budgeting only.
+ * These values are not sent as request fields or used to infer plan access.
  */
 export function getChatGPTModelContextWindow(
   model: string,
 ): number | undefined {
+  const accountModel = isChatGPTAuthMode()
+    ? discoveredModels.find(option => option.value === model)
+    : undefined
+  if (accountModel) {
+    // shortcut: missing catalog limits use the existing estimate; replace it when the service supplies model-specific limits.
+    return accountModel.contextWindow ?? CHATGPT_OAUTH_CONTEXT_WINDOW
+  }
   if (!isGpt56FamilyModel(model)) {
     return undefined
   }

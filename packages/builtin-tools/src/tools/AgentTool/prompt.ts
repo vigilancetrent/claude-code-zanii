@@ -3,6 +3,7 @@ import { getSubscriptionType } from 'src/utils/auth.js'
 import { hasEmbeddedSearchTools } from 'src/utils/embeddedTools.js'
 import { isEnvDefinedFalsy, isEnvTruthy } from 'src/utils/envUtils.js'
 import { isTeammate } from 'src/utils/teammate.js'
+import { getSettings_DEPRECATED } from 'src/utils/settings/settings.js'
 import { isInProcessTeammate } from 'src/utils/teammateContext.js'
 import { FILE_READ_TOOL_NAME } from '../FileReadTool/prompt.js'
 import { GLOB_TOOL_NAME } from '../GlobTool/prompt.js'
@@ -162,9 +163,18 @@ When NOT to use the ${AGENT_TOOL_NAME} tool:
 - Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses`
       : ''
 
+  // settings.subagentDelegation === 'explicit': keep the tool, tell the model
+  // to hold back. Lives in the tool description so it is cache-stable.
+  const explicitOnlyNote =
+    getSettings_DEPRECATED()?.subagentDelegation === 'explicit'
+      ? `
+Delegation policy: only launch agents when the user explicitly asks for one (e.g. "use a subagent", "run this in the background"). Otherwise do the work yourself with the other tools.
+`
+      : ''
+
   // Non-coordinator gets the full prompt with all sections
   return `${shared}
-${whenNotToUseSection}
+${whenNotToUseSection}${explicitOnlyNote}
 
 Usage notes:
 - Always include a short description (3-5 words) summarizing what the agent will do${concurrencyNote}

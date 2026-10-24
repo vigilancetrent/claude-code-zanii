@@ -129,6 +129,26 @@ export function AuthPlaneSummary({ status }: AuthPlaneSummaryProps): React.React
         <WorkspaceKeyRow workspaceKey={status.workspaceKey} />
         <WorkspaceKeyInstructions subscription={status.subscription} workspaceKey={status.workspaceKey} />
       </Box>
+      {status.chatgpt && (
+        <Box marginTop={1} flexDirection="column">
+          <Text bold>ChatGPT account:</Text>
+          <Box marginLeft={2} flexDirection="column">
+            <Text>
+              {status.chatgpt.unavailable
+                ? 'Connection status unavailable; use /logout, then /login on this device.'
+                : !status.chatgpt.active
+                  ? 'Not connected to this app'
+                  : status.chatgpt.planUsageEnabled
+                    ? 'Connected · plan usage authorized'
+                    : 'Connected · plan usage disabled'}
+            </Text>
+            {status.chatgpt.active && (
+              <Text dimColor>Model access and usage limits are checked by OpenAI for each request.</Text>
+            )}
+            {status.chatgpt.selected && <Text dimColor>Selected for model requests</Text>}
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }

@@ -1919,9 +1919,11 @@ async function* queryModel(
             { ...params, stream: true },
             {
               signal,
-              ...(clientRequestId && {
-                headers: { [CLIENT_REQUEST_ID_HEADER]: clientRequestId },
-              }),
+              headers: {
+                ...(clientRequestId && {
+                  [CLIENT_REQUEST_ID_HEADER]: clientRequestId,
+                }),
+              },
             },
           )
           .withResponse()

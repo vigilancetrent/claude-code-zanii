@@ -39,6 +39,10 @@ import {
   isThirdPartyAPIProvider,
 } from '../../utils/model/providers.js'
 import { getInitialSettings } from '../../utils/settings/settings.js'
+import {
+  getChatGPTAuthStatus,
+  isChatGPTAuthEnabled,
+} from '../../services/api/openai/chatgptAuth.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import {
   buildAccountProperties,
@@ -116,12 +120,19 @@ export async function authLogin({
   sso,
   console: useConsole,
   claudeai,
+  chatgpt,
 }: {
   email?: string
   sso?: boolean
   console?: boolean
   claudeai?: boolean
+  chatgpt?: boolean
 }): Promise<void> {
+  if (chatgpt) {
+    const { authLoginChatGPT } = await import('./chatgptLogin.js')
+    await authLoginChatGPT({ email, sso, console: useConsole, claudeai })
+    process.exit(process.exitCode ?? 0)
+  }
   if (useConsole && claudeai) {
     process.stderr.write(
       'Error: --console and --claudeai cannot be used together.\n',
@@ -239,6 +250,31 @@ export async function authStatus(opts: {
   json?: boolean
   text?: boolean
 }): Promise<void> {
+  if (getAPIProvider() === 'openai' && isChatGPTAuthEnabled()) {
+    const status = await getChatGPTAuthStatus().catch(() => ({
+      loggedIn: false,
+      planUsageEnabled: false,
+    }))
+    if (opts.text) {
+      process.stdout.write(
+        `Provider: OpenAI\nAuth: ChatGPT account\nConnection: ${status.loggedIn ? 'connected' : 'not connected'}\nChatGPT plan usage: ${status.planUsageEnabled ? 'authorized (request access checked by OpenAI)' : 'disabled; reconnect with /login'}\n`,
+      )
+    } else {
+      process.stdout.write(
+        jsonStringify(
+          {
+            loggedIn: status.loggedIn,
+            authMethod: 'chatgpt',
+            apiProvider: 'openai',
+            planUsageEnabled: status.planUsageEnabled,
+          },
+          null,
+          2,
+        ) + '\n',
+      )
+    }
+    process.exit(status.loggedIn ? 0 : 1)
+  }
   const { source: authTokenSource, hasToken } = getAuthTokenSource()
   const { source: apiKeySource } = getAnthropicApiKeyWithSource()
   const hasApiKeyEnvVar =
@@ -325,12 +361,13 @@ export async function authStatus(opts: {
 }
 
 export async function authLogout(): Promise<void> {
+  let warning: string | undefined
   try {
-    await performLogout({ clearOnboarding: false })
+    warning = (await performLogout({ clearOnboarding: false })).warning
   } catch {
     process.stderr.write('Failed to log out.\n')
     process.exit(1)
   }
-  process.stdout.write('Successfully logged out from your Anthropic account.\n')
+  process.stdout.write((warning ?? 'Successfully logged out.') + '\n')
   process.exit(0)
 }

@@ -28,6 +28,8 @@ import { type UseTextInputProps, useTextInput } from './useTextInput.js'
 type UseVimInputProps = Omit<UseTextInputProps, 'inputFilter'> & {
   onModeChange?: (mode: VimMode) => void
   onUndo?: () => void
+  onRedo?: () => void
+  onSearch?: () => void
   inputFilter?: UseTextInputProps['inputFilter']
 }
 
@@ -182,6 +184,11 @@ export function useVimInput(props: UseVimInputProps): VimInputState {
     const cursor = Cursor.fromText(props.value, props.columns, textInput.offset)
 
     if (key.ctrl) {
+      // Vim NORMAL: Ctrl+R = redo
+      if (state.mode === 'NORMAL' && rawInput === 'r') {
+        props.onRedo?.()
+        return
+      }
       textInput.onInput(input, key)
       return
     }
@@ -245,6 +252,8 @@ export function useVimInput(props: UseVimInputProps): VimInputState {
     const ctx: TransitionContext = {
       ...createOperatorContext(cursor, false),
       onUndo: props.onUndo,
+      onRedo: props.onRedo,
+      onSearch: props.onSearch,
       onDotRepeat: replayLastChange,
     }
 

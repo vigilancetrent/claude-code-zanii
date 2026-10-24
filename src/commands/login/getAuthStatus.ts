@@ -14,12 +14,19 @@
 import type { SubscriptionType } from '../../services/oauth/types.js'
 import { getClaudeAIOAuthTokens } from '../../utils/auth.js'
 import { getGlobalConfig } from '../../utils/config.js'
+import { getAPIProvider } from '../../utils/model/providers.js'
 
 // ---------------------------------------------------------------------------
 // Public types
 // ---------------------------------------------------------------------------
 
 export interface AuthStatus {
+  chatgpt?: {
+    active: boolean
+    planUsageEnabled: boolean
+    selected: boolean
+    unavailable?: boolean
+  }
   subscription: {
     /** true when a claude.ai OAuth token is present in local storage */
     active: boolean
@@ -100,7 +107,11 @@ function maskApiKey(key: string): string {
  *
  * This function never throws and never makes network calls.
  */
-export function getAuthStatus(): AuthStatus {
+export function getAuthStatus(chatgpt?: {
+  loggedIn: boolean
+  planUsageEnabled: boolean
+  unavailable?: boolean
+}): AuthStatus {
   // ---- 1. Subscription OAuth plane ----
   const oauthTokens = getClaudeAIOAuthTokens()
   const subscriptionActive =
@@ -150,6 +161,18 @@ export function getAuthStatus(): AuthStatus {
   const keyPreview = keySet ? maskApiKey(rawKey) : null
 
   return {
+    ...(chatgpt
+      ? {
+          chatgpt: {
+            active: chatgpt.loggedIn,
+            planUsageEnabled: chatgpt.planUsageEnabled,
+            selected:
+              getAPIProvider() === 'openai' &&
+              process.env.OPENAI_AUTH_MODE === 'chatgpt',
+            unavailable: chatgpt.unavailable,
+          },
+        }
+      : {}),
     subscription: {
       active: subscriptionActive,
       plan,

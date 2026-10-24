@@ -34,7 +34,14 @@ import { getAPIProvider } from './model/providers.js'
 import { normalizeModelStringForAPI } from './model/model.js'
 import { getOpenAIClient } from '../services/api/openai/client.js'
 import { getGrokClient } from '../services/api/grok/client.js'
-import { isChatGPTAuthEnabled } from '../services/api/openai/chatgptAuth.js'
+import {
+  getValidChatGPTAuth,
+  isChatGPTAuthEnabled,
+} from '../services/api/openai/chatgptAuth.js'
+import {
+  fetchChatGPTModelCatalog,
+  resolveChatGPTModel,
+} from '../services/api/openai/chatgptModels.js'
 import {
   adaptResponsesStreamToAnthropic,
   buildResponsesRequest,
@@ -54,6 +61,7 @@ import {
   anthropicToolsToGemini,
   anthropicToolChoiceToGemini,
   normalizeOpenAIUsage,
+  type ChatGPTResponsesState,
 } from '@ant/model-provider'
 import type { SystemPrompt } from './systemPromptType.js'
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta/messages/messages.mjs'
@@ -399,6 +407,7 @@ async function collectAnthropicStreamToBetaMessage(
     cache_read_input_tokens: 0,
   }
   const contentBlocks: Record<number, Record<string, unknown>> = {}
+  let completed = false
 
   for await (const event of stream) {
     switch (event.type) {
@@ -497,10 +506,16 @@ async function collectAnthropicStreamToBetaMessage(
         }
         break
       }
+      case 'message_stop': {
+        completed = true
+        break
+      }
       default:
         break
     }
   }
+
+  if (!completed) throw new Error('ChatGPT stream did not complete')
 
   const content = Object.keys(contentBlocks)
     .map(Number)
@@ -511,11 +526,7 @@ async function collectAnthropicStreamToBetaMessage(
         const rawInput = block.input
         let parsed: unknown = {}
         if (typeof rawInput === 'string' && rawInput.length > 0) {
-          try {
-            parsed = JSON.parse(rawInput)
-          } catch {
-            parsed = {}
-          }
+          parsed = JSON.parse(rawInput)
         } else if (rawInput && typeof rawInput === 'object') {
           parsed = rawInput
         }
@@ -558,14 +569,14 @@ async function collectAnthropicStreamToBetaMessage(
 }
 
 /**
- * ChatGPT OAuth side query via the Codex Responses API.
+ * ChatGPT OAuth side query via the public Responses API.
  *
  * Must not use getOpenAIClient() — that path only reads OPENAI_API_KEY and
  * yields 401 under OPENAI_AUTH_MODE=chatgpt (no API key configured).
  */
 async function sideQueryViaChatGPTResponses(
   opts: SideQueryOptions,
-  openaiModel: string,
+  requestedModel: string,
   openaiMessages: Array<{
     role: 'system' | 'user' | 'assistant'
     content: string
@@ -574,23 +585,36 @@ async function sideQueryViaChatGPTResponses(
   openaiToolChoice: unknown,
 ): Promise<BetaMessage> {
   const start = Date.now()
+  const signal = opts.signal ?? new AbortController().signal
+  const auth = await getValidChatGPTAuth(signal)
+  const catalog = await fetchChatGPTModelCatalog(auth, signal)
+  const openaiModel = resolveChatGPTModel(requestedModel, catalog)
   const request = buildResponsesRequest({
     model: openaiModel,
     messages: openaiMessages,
     tools: openaiTools ?? [],
     toolChoice: openaiToolChoice,
     promptCacheKey: formatOpenAIPromptCacheKey(getSessionId()),
+    accountKey: auth.accountKey,
   })
 
   const rawStream = await createChatGPTResponsesStream({
     request,
-    signal: opts.signal ?? new AbortController().signal,
+    signal,
+    auth,
   })
-  const adapted = adaptResponsesStreamToAnthropic(rawStream, openaiModel)
+  let chatgptResponses: ChatGPTResponsesState | undefined
+  const adapted = adaptResponsesStreamToAnthropic(rawStream, openaiModel, {
+    accountKey: auth.accountKey,
+    onCompleted: state => {
+      chatgptResponses = state
+    },
+  })
   const betaMessage = await collectAnthropicStreamToBetaMessage(
     adapted,
     openaiModel,
   )
+  Object.assign(betaMessage, { chatgptResponses })
 
   const now = Date.now()
   const lastCompletion = getLastApiCompletionTimestamp()
@@ -678,7 +702,7 @@ async function sideQueryViaOpenAICompatible(
   if (provider === 'openai' && isChatGPTAuthEnabled()) {
     return sideQueryViaChatGPTResponses(
       opts,
-      openaiModel,
+      normalizedModel,
       openaiMessages,
       openaiTools,
       openaiToolChoice,

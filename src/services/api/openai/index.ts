@@ -27,11 +27,17 @@ import {
   anthropicToolsToOpenAI,
   anthropicToolChoiceToOpenAI,
 } from '@ant/model-provider'
-import { isChatGPTAuthEnabled } from './chatgptAuth.js'
+import { getValidChatGPTAuth, isChatGPTAuthEnabled } from './chatgptAuth.js'
+import {
+  fetchChatGPTModelCatalog,
+  resolveChatGPTModel,
+} from './chatgptModels.js'
+import type { ChatGPTResponsesState } from '@ant/model-provider'
 import {
   adaptResponsesStreamToAnthropic,
   buildResponsesRequest,
   createChatGPTResponsesStream,
+  messagesWithResponsesState,
   type ResponsesReasoningEffort,
 } from './responsesAdapter.js'
 import { normalizeMessagesForAPI } from '../../../utils/messages.js'
@@ -50,7 +56,6 @@ import {
   toChatCompletionsReasoningEffort,
 } from './requestBody.js'
 import { resolveAppliedEffort } from '../../../utils/effort.js'
-import { getGatewayHintHeaders } from '../gatewayHints.js'
 import { recordLLMObservation } from '../../../services/langfuse/tracing.js'
 import {
   convertMessagesToLangfuse,
@@ -162,6 +167,7 @@ function assembleFinalAssistantOutputs(params: {
   }
   stopReason: string | null
   maxTokens: number
+  chatgptResponses?: ChatGPTResponsesState
 }): (AssistantMessage | SystemAPIErrorMessage)[] {
   const {
     partialMessage,
@@ -171,6 +177,7 @@ function assembleFinalAssistantOutputs(params: {
     usage,
     stopReason,
     maxTokens,
+    chatgptResponses,
   } = params
   const outputs: (AssistantMessage | SystemAPIErrorMessage)[] = []
 
@@ -179,7 +186,7 @@ function assembleFinalAssistantOutputs(params: {
     .map(k => contentBlocks[Number(k)])
     .filter(Boolean)
 
-  if (allBlocks.length > 0 && partialMessage) {
+  if ((allBlocks.length > 0 || chatgptResponses) && partialMessage) {
     outputs.push({
       message: {
         ...partialMessage,
@@ -191,6 +198,7 @@ function assembleFinalAssistantOutputs(params: {
         usage,
         stop_reason: stopReason,
         stop_sequence: null,
+        ...(chatgptResponses ? { chatgptResponses } : {}),
       } as AssistantMessage['message'],
       requestId: undefined,
       type: 'assistant',
@@ -232,7 +240,20 @@ export async function* queryModelOpenAI(
 > {
   try {
     // 1. Resolve model name
-    const openaiModel = resolveOpenAIModel(options.model)
+    const useChatGPTResponses = isChatGPTAuthEnabled()
+    const chatgptAuth = useChatGPTResponses
+      ? await getValidChatGPTAuth(signal)
+      : undefined
+    const catalog = chatgptAuth
+      ? await fetchChatGPTModelCatalog(
+          chatgptAuth,
+          signal,
+          options.fetchOverride as unknown as typeof fetch | undefined,
+        )
+      : undefined
+    const openaiModel = useChatGPTResponses
+      ? resolveChatGPTModel(options.model, catalog)
+      : resolveOpenAIModel(options.model)
 
     // 2. Normalize messages using shared preprocessing
     const messagesForAPI = normalizeMessagesForAPI(messages, tools)
@@ -289,6 +310,13 @@ export async function* queryModelOpenAI(
     const standardTools = toolSchemas.filter(
       (t): t is BetaToolUnion & { type: string } => {
         const anyT = t as unknown as Record<string, unknown>
+        if (useChatGPTResponses) {
+          return (
+            (anyT.type === undefined || anyT.type === 'custom') &&
+            anyT.input_schema !== null &&
+            typeof anyT.input_schema === 'object'
+          )
+        }
         return (
           anyT.type !== 'advisor_20260301' && anyT.type !== 'computer_20250124'
         )
@@ -314,11 +342,14 @@ export async function* queryModelOpenAI(
       deferredToolNames,
       useSearchExtraTools,
     )
-    const openaiMessages = anthropicMessagesToOpenAI(
+    const chatMessages = anthropicMessagesToOpenAI(
       messagesWithDeferredToolList,
       systemPrompt,
       { enableThinking },
     )
+    const openaiMessages = useChatGPTResponses
+      ? messagesWithResponsesState(messagesWithDeferredToolList, systemPrompt)
+      : chatMessages
     const openaiTools = anthropicToolsToOpenAI(standardTools)
     const openaiToolChoice = anthropicToolChoiceToOpenAI(options.toolChoice)
     const reasoningEffort = getChatGPTResponsesReasoningEffort(
@@ -362,7 +393,6 @@ export async function* queryModelOpenAI(
       options.maxOutputTokensOverride,
     )
 
-    const useChatGPTResponses = isChatGPTAuthEnabled()
     // OpenAI's official OAuth and API-key routes share the same prompt-cache
     // contract. Scope the key to the real conversation so resumed turns stay
     // sticky while unrelated sessions do not share a routing bucket. Generic
@@ -379,9 +409,10 @@ export async function* queryModelOpenAI(
     )
 
     // 11. Call OpenAI API with streaming. ChatGPT subscription auth uses the
-    // Codex Responses backend; API-key/OpenAI-compatible auth keeps the
+    // public Responses endpoint; API-key/OpenAI-compatible auth keeps the
     // existing Chat Completions adapter.
-    const adaptedStream = useChatGPTResponses
+    let chatgptResponses: ChatGPTResponsesState | undefined
+    const adaptedStream = chatgptAuth
       ? adaptResponsesStreamToAnthropic(
           await createChatGPTResponsesStream({
             request: buildResponsesRequest({
@@ -391,11 +422,19 @@ export async function* queryModelOpenAI(
               toolChoice: openaiToolChoice,
               reasoningEffort,
               promptCacheKey: sessionPromptCacheKey,
+              accountKey: chatgptAuth.accountKey,
             }),
             signal,
             fetchOverride: options.fetchOverride as unknown as typeof fetch,
+            auth: chatgptAuth,
           }),
           openaiModel,
+          {
+            accountKey: chatgptAuth.accountKey,
+            onCompleted: state => {
+              chatgptResponses = state
+            },
+          },
         )
       : adaptOpenAIStreamToAnthropic(
           await getOpenAIClient({
@@ -405,7 +444,7 @@ export async function* queryModelOpenAI(
           }).chat.completions.create(
             buildOpenAIRequestBody({
               model: openaiModel,
-              messages: openaiMessages,
+              messages: chatMessages,
               tools: openaiTools,
               toolChoice: openaiToolChoice,
               enableThinking,
@@ -416,11 +455,6 @@ export async function* queryModelOpenAI(
             }),
             {
               signal,
-              headers: getGatewayHintHeaders({
-                querySource: options.querySource,
-                agentId: options.agentId,
-                messages,
-              }),
             },
           ),
           openaiModel,
@@ -519,6 +553,7 @@ export async function* queryModelOpenAI(
               usage,
               stopReason,
               maxTokens,
+              chatgptResponses,
             })) {
               if (output.type === 'assistant') {
                 collectedMessages.push(output)
@@ -531,14 +566,13 @@ export async function* queryModelOpenAI(
           }
           // Track cost and token usage
           if (usage.input_tokens + usage.output_tokens > 0) {
-            const costUSD = calculateUSDCost(
-              openaiModel,
-              usage as unknown as BetaUsage,
-            )
+            const costUSD = useChatGPTResponses
+              ? 0
+              : calculateUSDCost(openaiModel, usage as unknown as BetaUsage)
             addToTotalSessionCost(
               costUSD,
               usage as unknown as BetaUsage,
-              options.model,
+              useChatGPTResponses ? openaiModel : options.model,
             )
           }
           break
@@ -557,7 +591,7 @@ export async function* queryModelOpenAI(
     recordLLMObservation(options.langfuseTrace ?? null, {
       model: openaiModel,
       provider: 'openai',
-      input: convertMessagesToLangfuse(openaiMessages),
+      input: convertMessagesToLangfuse(chatMessages),
       output: convertOutputToLangfuse(collectedMessages),
       usage: {
         input_tokens: usage.input_tokens,
@@ -573,7 +607,7 @@ export async function* queryModelOpenAI(
     })
 
     // Safety: if stream ended without message_stop, assemble and yield whatever we have
-    if (partialMessage) {
+    if (partialMessage && !useChatGPTResponses) {
       for (const output of assembleFinalAssistantOutputs({
         partialMessage,
         contentBlocks,

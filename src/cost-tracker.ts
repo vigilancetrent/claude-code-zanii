@@ -46,6 +46,8 @@ import { isFastModeEnabled } from './utils/fastMode.js'
 import { formatDuration, formatNumber } from './utils/format.js'
 import type { FpsMetrics } from './utils/fpsTracker.js'
 import { getCanonicalName } from './utils/model/model.js'
+import { getAPIProvider } from './utils/model/providers.js'
+import { isChatGPTAuthMode } from './utils/model/chatgptModels.js'
 import { calculateUSDCost } from './utils/modelCost.js'
 export {
   getTotalCostUSD as getTotalCost,
@@ -179,7 +181,7 @@ function formatCost(cost: number, maxDecimalPlaces: number = 4): string {
   return `$${cost > 0.5 ? round(cost, 100).toFixed(2) : cost.toFixed(maxDecimalPlaces)}`
 }
 
-function formatModelUsage(): string {
+function formatModelUsage(subscriptionMode = false): string {
   const modelUsageMap = getModelUsage()
   if (Object.keys(modelUsageMap).length === 0) {
     return 'Usage:                 0 input, 0 output, 0 cache read, 0 cache write'
@@ -220,23 +222,29 @@ function formatModelUsage(): string {
       (usage.webSearchRequests > 0
         ? `, ${formatNumber(usage.webSearchRequests)} web search`
         : '') +
-      ` (${formatCost(usage.costUSD)})`
+      (subscriptionMode && usage.costUSD === 0
+        ? ' (ChatGPT plan usage; no API charge recorded)'
+        : ` (${formatCost(usage.costUSD)})`)
     result += `\n` + `${shortName}:`.padStart(21) + usageString
   }
   return result
 }
 
 export function formatTotalCost(): string {
+  const subscriptionMode = getAPIProvider() === 'openai' && isChatGPTAuthMode()
   const costDisplay =
     formatCost(getTotalCostUSD()) +
     (hasUnknownModelCost()
       ? ' (costs may be inaccurate due to usage of unknown models)'
       : '')
 
-  const modelUsageDisplay = formatModelUsage()
+  const modelUsageDisplay = formatModelUsage(subscriptionMode)
 
   return chalk.dim(
-    `Total cost:            ${costDisplay}\n` +
+    (subscriptionMode
+      ? 'Billing:               ChatGPT plan (subscription usage excluded from API costs)\n'
+      : '') +
+      `${subscriptionMode ? 'Recorded API cost:    ' : 'Total cost:           '} ${costDisplay}\n` +
       `Total duration (API):  ${formatDuration(getTotalAPIDuration())}
 Total duration (wall): ${formatDuration(getTotalDuration())}
 Total code changes:    ${getTotalLinesAdded()} ${getTotalLinesAdded() === 1 ? 'line' : 'lines'} added, ${getTotalLinesRemoved()} ${getTotalLinesRemoved() === 1 ? 'line' : 'lines'} removed

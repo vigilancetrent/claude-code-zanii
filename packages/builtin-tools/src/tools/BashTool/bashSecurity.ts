@@ -7,6 +7,7 @@ import {
   tryParseShellCommand,
 } from 'src/utils/bash/shellQuote.js'
 import type { TreeSitterAnalysis } from 'src/utils/bash/treeSitterAnalysis.js'
+import { isAutoModeActive } from 'src/utils/permissions/autoModeState.js'
 import type { PermissionResult } from 'src/utils/permissions/PermissionResult.js'
 
 const HEREDOC_IN_SUBSTITUTION = /\$\(.*<</
@@ -840,10 +841,59 @@ function validateDangerousVariables(
   return { behavior: 'passthrough', message: 'No dangerous variables' }
 }
 
+/**
+ * `$( … $( … ) … )`, `$( … \` … \` … )`, `\` … $( … ) … \``: two layers of
+ * command substitution. The classifier sees the outer text but the inner
+ * command is what actually decides what runs, so auto mode refuses these
+ * outright (upstream 2.1.273). Other modes still just ask.
+ */
+export function hasNestedCommandSubstitution(command: string): boolean {
+  let depth = 0
+  let inBacktick = false
+  for (let i = 0; i < command.length; i++) {
+    const c = command[i]
+    if (c === '\\') {
+      i++
+      continue
+    }
+    if (c === '`') {
+      if (inBacktick) {
+        inBacktick = false
+        depth--
+      } else {
+        if (depth > 0) return true
+        inBacktick = true
+        depth++
+      }
+      continue
+    }
+    if (c === '$' && command[i + 1] === '(') {
+      if (depth > 0) return true
+      depth++
+      i++
+      continue
+    }
+    if (c === ')' && depth > 0 && !inBacktick) depth--
+  }
+  return false
+}
+
 function validateDangerousPatterns(
   context: ValidationContext,
 ): PermissionResult {
   const { unquotedContent } = context
+
+  if (hasNestedCommandSubstitution(unquotedContent)) {
+    return {
+      behavior: isAutoModeActive() ? 'deny' : 'ask',
+      message:
+        'Command nests one command substitution inside another; auto mode refuses these because the inner command cannot be reviewed',
+      decisionReason: {
+        type: 'other',
+        reason: 'Nested command substitution',
+      },
+    }
+  }
 
   // Special handling for backticks - check for UNESCAPED backticks only
   // Escaped backticks (e.g., \`) are safe and commonly used in SQL commands

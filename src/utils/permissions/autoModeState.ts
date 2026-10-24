@@ -43,8 +43,15 @@ export function pickImplicitDefaultMode(opts: {
   autoCircuitBroken: boolean
   autoDisabledBySettings: boolean
   isRemote: boolean
+  /** -p / SDK runs: every tool call would cost a classifier round-trip, so stay explicit there. */
+  isNonInteractive?: boolean
 }): 'auto' | 'default' {
-  if (opts.autoCircuitBroken || opts.autoDisabledBySettings || opts.isRemote) {
+  if (
+    opts.autoCircuitBroken ||
+    opts.autoDisabledBySettings ||
+    opts.isRemote ||
+    opts.isNonInteractive
+  ) {
     return 'default'
   }
   return 'auto'

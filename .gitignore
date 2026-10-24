@@ -59,6 +59,11 @@ credentials.json
 
 # release artifacts
 /*.zip
+/artifacts/
+/tasks/verification/npm-cache/
 
 # local credentials - never commit
 /secrets/
+
+# VCR fixtures recorded by tests (src/services/vcr.ts); never commit
+/fixtures/

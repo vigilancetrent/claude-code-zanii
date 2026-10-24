@@ -4,7 +4,9 @@ import { extraUsage as extraUsageCommand } from 'src/commands/extra-usage/index.
 import { formatCost } from 'src/cost-tracker.js';
 import { getSubscriptionType } from 'src/utils/auth.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import { Box, Text } from '@anthropic/ink';
+import { Box, Link, Text } from '@anthropic/ink';
+import { getAPIProvider } from '../../utils/model/providers.js';
+import { CHATGPT_USAGE_URL, isChatGPTAuthMode } from '../../utils/model/chatgptModels.js';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
 import { type ExtraUsage, fetchUtilization, type RateLimit, type Utilization } from '../../services/api/usage.js';
 import { formatResetText } from '../../utils/format.js';
@@ -87,6 +89,23 @@ function LimitBar({ title, limit, maxWidth, showTimeInReset = true, extraSubtext
 }
 
 export function Usage(): React.ReactNode {
+  if (getAPIProvider() === 'openai' && isChatGPTAuthMode()) {
+    return (
+      <Box flexDirection="column" gap={1}>
+        <Text bold>ChatGPT plan usage</Text>
+        <Text>
+          This session is configured to use your ChatGPT plan. OpenAI checks model access and limits for each request.
+        </Text>
+        <Text>Token counts are measured locally; API dollar estimates do not apply to subscription requests.</Text>
+        <Link url={CHATGPT_USAGE_URL}>Manage usage</Link>
+        <Text dimColor>Run /cost for session token usage or /login to change the connection.</Text>
+      </Box>
+    );
+  }
+  return <AnthropicUsage />;
+}
+
+function AnthropicUsage(): React.ReactNode {
   const [utilization, setUtilization] = useState<Utilization | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);

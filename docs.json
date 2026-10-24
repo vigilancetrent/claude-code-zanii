@@ -119,6 +119,7 @@
           {
             "group": "工具增强",
             "pages": [
+              "docs/features/harness-parity-2026-09",
               "docs/features/mcp-skills",
               "docs/features/tree-sitter-bash",
               "docs/features/bash-classifier",

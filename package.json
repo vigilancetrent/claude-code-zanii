@@ -1,6 +1,6 @@
 {
   "name": "claude-code-zanii",
-  "version": "2.11.0",
+  "version": "2.14.3",
   "description": "Reverse-engineered Anthropic Claude Code CLI — interactive AI coding assistant in the terminal",
   "type": "module",
   "author": "claude-code-best <claude-code-best@proton.me>",
@@ -37,7 +37,12 @@
     "dist",
     "scripts/postinstall.cjs",
     "scripts/run-parallel.mjs",
-    "scripts/setup-chrome-mcp.mjs"
+    "scripts/setup-chrome-mcp.mjs",
+    "docs/features/chatgpt-subscription.md",
+    "docs/chatgpt-subscription-changes.md",
+    "docs/chatgpt-subscription-verification.md",
+    "docs/chatgpt-subscription-design.md",
+    "docs/readiness-report.md"
   ],
   "scripts": {
     "build": "bun run build.ts",
@@ -54,6 +59,7 @@
     "check:fix": "biome check --fix .",
     "prepare": "husky",
     "test": "bun test",
+    "test:chatgpt": "bun test --isolate ./src/__tests__/chatgptCost.isolated.ts ./src/components/Settings/__tests__/chatgptUsage.isolated.tsx ./src/utils/__tests__/sideQuery.chatgptAuth.isolated.ts ./src/services/api/openai/__tests__/queryModelOpenAI.isolated.ts ./src/services/api/openai/__tests__/chatgptAuth.isolated.ts src/services/api/openai/__tests__/chatgptModels.test.ts src/services/api/openai/__tests__/responsesAdapter.test.ts src/utils/__tests__/messages.test.ts ./src/utils/__tests__/messages.microcompact.isolated.ts src/utils/model/__tests__/chatgptModelRouting.test.ts src/commands/login/__tests__/getAuthStatus.test.ts tests/integration/chatgpt-subscription.test.ts src/utils/__tests__/transcriptSearchRequest.test.ts src/utils/__tests__/exportMarkdown.test.ts packages/builtin-tools/src/tools/AgentTool/__tests__/limits.test.ts ./src/cli/handlers/__tests__/chatgptLogin.isolated.ts src/utils/__tests__/chatgptLoginSignals.test.ts",
     "test:production": "bun run scripts/production-test.ts",
     "test:production:offline": "bun run scripts/production-test.ts --offline",
     "test:production:verbose": "bun run scripts/production-test.ts --verbose",
@@ -72,6 +78,7 @@
     "@claude-code-best/mcp-chrome-bridge": "^3.0.1",
     "@zanii/sdk": "^0.4.0",
     "highlight.js": "^11.11.1",
+    "node-fetch": "3.3.2",
     "ws": "^8.20.0"
   },
   "devDependencies": {
@@ -104,7 +111,7 @@
     "@growthbook/growthbook": "^1.6.5",
     "@langfuse/otel": "^5.1.0",
     "@langfuse/tracing": "^5.1.0",
-    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@modelcontextprotocol/sdk": "1.30.0",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/api-logs": "^0.215.0",
     "@opentelemetry/core": "^2.7.0",

@@ -760,6 +760,14 @@ export function normalizeMessages(messages: Message[]): NormalizedMessage[] {
         const assistantContent = Array.isArray(aMsg.message.content)
           ? aMsg.message.content
           : []
+        const { chatgptResponses, ...messageWithoutResponses } = aMsg.message
+        const responseOwner = Math.max(
+          0,
+          assistantContent.findLastIndex(
+            block =>
+              block.type !== 'thinking' && block.type !== 'redacted_thinking',
+          ),
+        )
         isNewChain = isNewChain || assistantContent.length > 1
         return assistantContent.map((_, index) => {
           const uuid = isNewChain
@@ -769,7 +777,10 @@ export function normalizeMessages(messages: Message[]): NormalizedMessage[] {
             type: 'assistant' as const,
             timestamp: message.timestamp,
             message: {
-              ...aMsg.message,
+              ...messageWithoutResponses,
+              ...(index === responseOwner && chatgptResponses
+                ? { chatgptResponses }
+                : {}),
               content: [_],
               context_management: aMsg.message.context_management ?? null,
             },
@@ -2720,6 +2731,9 @@ export function mergeAssistantMessages(
     ...a,
     message: {
       ...a.message,
+      ...(!a.message.chatgptResponses && b.message.chatgptResponses
+        ? { chatgptResponses: b.message.chatgptResponses }
+        : {}),
       content: [
         ...(Array.isArray(a.message.content) ? a.message.content : []),
         ...(Array.isArray(b.message.content) ? b.message.content : []),

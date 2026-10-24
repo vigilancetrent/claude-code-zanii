@@ -6,9 +6,12 @@ import { getCanonicalName } from './model/model.js'
 import { resolveAntModel } from './model/antModels.js'
 import {
   CHATGPT_CODEX_MAX_OUTPUT_TOKENS,
+  getChatGPTModelCatalog,
   getChatGPTModelContextWindow,
+  isChatGPTAuthMode,
 } from './model/chatgptModels.js'
 import { getModelCapability } from './model/modelCapabilities.js'
+import { getAPIProvider } from './model/providers.js'
 
 // Model context window size (200k tokens for all models right now)
 export const MODEL_CONTEXT_WINDOW_DEFAULT = 200_000
@@ -61,6 +64,12 @@ export function getContextWindowForModel(
   model: string,
   betas?: string[],
 ): number {
+  if (getAPIProvider() === 'openai' && isChatGPTAuthMode()) {
+    return (
+      getChatGPTModelContextWindow(model.replace(/\[1m\]$/i, '')) ??
+      MODEL_CONTEXT_WINDOW_DEFAULT
+    )
+  }
   // Allow override via environment variable (ant-only)
   // This takes precedence over all other context window resolution, including 1M detection,
   // so users can cap the effective context window for local decisions (auto-compact, etc.)
@@ -80,9 +89,8 @@ export function getContextWindowForModel(
     return 1_000_000
   }
 
-  // GPT-5.6 family: OAuth/Codex ≈ 272k; API key path ≈ 1.05M (model card).
-  // Used for UI %, auto-compact thresholds, and local budgeting — not sent
-  // as a request field (Codex Responses does not take max_input_tokens).
+  // Prefer account metadata for subscription budgeting; fallback values are
+  // local estimates, not plan quotas or request parameters.
   const chatgptContextWindow = getChatGPTModelContextWindow(model)
   if (chatgptContextWindow !== undefined) {
     if (
@@ -192,9 +200,16 @@ export function getModelMaxOutputTokens(model: string): {
   }
 
   const m = getCanonicalName(model)
+  const accountOutputLimit = isChatGPTAuthMode()
+    ? getChatGPTModelCatalog().find(option => option.value === model)
+        ?.maxOutputTokens
+    : undefined
 
   // GPT-5.6 family: official 128k max output (OpenAI model card).
-  if (getChatGPTModelContextWindow(model) !== undefined) {
+  if (accountOutputLimit !== undefined) {
+    defaultTokens = Math.min(32_000, accountOutputLimit)
+    upperLimit = accountOutputLimit
+  } else if (getChatGPTModelContextWindow(model) !== undefined) {
     defaultTokens = 32_000
     upperLimit = CHATGPT_CODEX_MAX_OUTPUT_TOKENS
   } else if (m.includes('opus-4-7')) {

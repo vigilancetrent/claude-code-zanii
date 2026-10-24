@@ -84,8 +84,14 @@ async function waitForEnqueues(
   setOnEnqueue(null)
 }
 
+// The var is exported by a parent Claude Code session (this test suite is
+// often run from inside one); the assertions below need a clean slate.
+let previousMessagingToken: string | undefined
+
 beforeEach(async () => {
   previousConfigDir = process.env.CLAUDE_CONFIG_DIR
+  previousMessagingToken = process.env.CLAUDE_CODE_MESSAGING_TOKEN
+  delete process.env.CLAUDE_CODE_MESSAGING_TOKEN
   tempConfigDir = await mkdtemp(join(tmpdir(), 'uds-messaging-home-'))
   process.env.CLAUDE_CONFIG_DIR = tempConfigDir
 })
@@ -94,6 +100,11 @@ afterEach(async () => {
   setOnEnqueue(null)
   drainInbox()
   await stopUdsMessaging()
+  if (previousMessagingToken === undefined) {
+    delete process.env.CLAUDE_CODE_MESSAGING_TOKEN
+  } else {
+    process.env.CLAUDE_CODE_MESSAGING_TOKEN = previousMessagingToken
+  }
   if (previousConfigDir === undefined) {
     delete process.env.CLAUDE_CONFIG_DIR
   } else {

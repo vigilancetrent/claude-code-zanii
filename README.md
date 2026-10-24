@@ -14,7 +14,7 @@ A fully restored, open build of Anthropic's [Claude Code](https://docs.anthropic
 
 ![Claude Code Zanii terminal session showing a verified Zanii proof](docs/assets/zanii-proof-terminal.svg)
 
-> **v2.9.0** — Layered memory system (L1/L2/L3), CodeGraph, Wiki-Lite with PageRank, skill promotion, team ACL, 24 bug fixes. [Release notes](https://github.com/vigilancetrent/claude-code-zanii/releases/tag/v2.9.0)
+> **v2.13.0** — App-owned ChatGPT sign-in: run `ccz auth login --chatgpt`, choose from the connected account's model catalog, and use the existing local tool permission flow. Any ChatGPT account may attempt sign-in; OpenAI determines plan permission and request access. [Setup](docs/features/chatgpt-subscription.md) · [Verification and remaining live-account checks](docs/chatgpt-subscription-verification.md)
 
 ## Proof of action
 
@@ -52,7 +52,8 @@ Receipts record *that* a tool ran and whether it succeeded — not what was in i
 | **Pipe IPC & LAN swarm** — multi-instance collaboration on one machine or across the LAN ([docs](https://ccb.agent-aura.top/docs/features/uds-inbox)) | **Web search** — built-in Bing/Brave search tool ([docs](https://ccb.agent-aura.top/docs/features/web-browser-tool)) | **Computer & Chrome use** — screenshots, keyboard/mouse, browser automation ([docs](https://ccb.agent-aura.top/docs/features/computer-use)) |
 | **Poor mode** — `/poor` cuts memory extraction and suggestions to slash request volume | **Channels** — push external messages into a session (Slack, Discord, 飞书, WeChat) ([docs](https://ccb.agent-aura.top/docs/features/channels)) | **Teach-me skill** — `/teach-me <topic>` walks you through this codebase Socratically |
 | **Layered memory** — L1/L2/L3 distillation pipeline, provable writes via Zanii receipts, `/memory audit|list|clear` ([docs](https://ccb.agent-aura.top/docs/features/ccz-memory-plan)) | **Wiki-lite** — cross-link detection + PageRank keyword search across Magic Docs via `WikiSearchTool` ([docs](https://ccb.agent-aura.top/docs/features/wiki-lite)) | **Impact analysis** — callers/callees/blast radius via LSP or CodeGraph ([docs](https://ccb.agent-aura.top/docs/features/impact-analysis)) |
-| **Skill promotion** — `/skill-promote` moves skills from project to user scope with semver versioning ([docs](https://ccb.agent-aura.top/docs/features/skill-promotion)) | **Team loadouts** — role-based memory filtering per agent with persistent registry ([docs](https://ccb.agent-aura.top/docs/features/team-loadouts)) | **CodeGraph** — incremental TS/JS indexer with mtime tracking + JSON persistence |
+| **Skill promotion** — `/skill-promote` moves skills from project to user scope with semver versioning ([docs](https://ccb.agent-aura.top/docs/features/skill-promotion)) | **Team loadouts** — role-based memory filtering per agent with persistent registry ([docs](https://ccb.agent-aura.top/docs/features/team-loadouts)) | **CodeGraph** — incremental TS/JS indexer with mtime tracking + JSON persistence; `repoMap: true` injects a ranked symbol map into the prompt |
+| **Auto mode by default** — classifier reviews every tool call; nested subagents (depth 3, cap 20); `/undo`, `/focus`, `/subtask`, `/list-agents`, `/skill-doctor` ([docs](docs/features/harness-parity-2026-09.md)) | **Any-provider parity** — `/effort` → `reasoning_effort` / Gemini `thinkingBudget`, `planModel` architect/editor split, `modelPricing` for honest `/cost`, gateway hint headers + [`model_gateway/`](model_gateway/README.md) router | **Skill learning** — Hermes-style closed loop (`/skill-learning start`); `librarian` agent for library docs; `postEditChecks` auto lint/test; `/import` from Cursor / Codex / Copilot |
 
 ![Layered Memory System Architecture](docs/assets/memory-system.svg)
 

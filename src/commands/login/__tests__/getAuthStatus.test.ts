@@ -12,6 +12,7 @@ mock.module('src/utils/log.ts', logMock)
 mock.module('src/utils/debug.ts', debugMock)
 mock.module('bun:bundle', () => ({ feature: () => false }))
 mock.module('src/utils/settings/settings.js', () => ({
+  getInitialSettings: () => ({}),
   getCachedOrDefaultSettings: () => ({}),
   getSettings: () => ({}),
 }))
@@ -39,6 +40,38 @@ const SUBSCRIPTION_TOKEN_FIXTURE = {
 // We'll import getAuthStatus lazily after setting up mocks
 describe('getAuthStatus', () => {
   const origEnv = { ...process.env }
+
+  test('distinguishes ChatGPT identity, plan consent and selected billing mode without credentials', async () => {
+    mock.module('src/utils/auth.ts', () => ({
+      getClaudeAIOAuthTokens: () => null,
+      hasAnthropicApiKeyAuth: () => false,
+      isAnthropicAuthEnabled: () => false,
+      getSubscriptionType: () => null,
+    }))
+    const { getAuthStatus } = await import('../getAuthStatus.js')
+    process.env.OPENAI_AUTH_MODE = 'chatgpt'
+    process.env.CLAUDE_CODE_USE_OPENAI = '1'
+    const status = getAuthStatus({ loggedIn: true, planUsageEnabled: false })
+    expect(status.chatgpt).toEqual({
+      active: true,
+      planUsageEnabled: false,
+      selected: true,
+      unavailable: undefined,
+    })
+    expect(JSON.stringify(status.chatgpt)).not.toContain('token')
+    expect(
+      getAuthStatus({
+        loggedIn: false,
+        planUsageEnabled: false,
+        unavailable: true,
+      }).chatgpt?.unavailable,
+    ).toBe(true)
+    delete process.env.CLAUDE_CODE_USE_OPENAI
+    expect(
+      getAuthStatus({ loggedIn: true, planUsageEnabled: true }).chatgpt
+        ?.selected,
+    ).toBe(false)
+  })
 
   beforeEach(() => {
     // Reset env to clean state before each test

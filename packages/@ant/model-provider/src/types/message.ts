@@ -34,6 +34,13 @@ export type MessageContent = string | ContentBlockParam[] | ContentBlock[]
  */
 export type TypedMessageContent = ContentItem[]
 
+export type ChatGPTResponsesState = {
+  accountKey: string
+  model: string
+  responseId: string
+  output: Record<string, unknown>[]
+}
+
 export type Message = {
   type: MessageType
   uuid: UUID
@@ -54,6 +61,7 @@ export type Message = {
     id?: string
     content?: MessageContent
     usage?: BetaUsage | Record<string, unknown>
+    chatgptResponses?: ChatGPTResponsesState
     [key: string]: unknown
   }
   [key: string]: unknown

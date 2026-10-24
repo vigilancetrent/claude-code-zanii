@@ -20,7 +20,9 @@ export function getMacroDefines(): Record<string, string> {
     'MACRO.VERSION': JSON.stringify(pkg.version),
     'MACRO.BUILD_TIME': JSON.stringify(new Date().toISOString()),
     'MACRO.FEEDBACK_CHANNEL': JSON.stringify(''),
-    'MACRO.ISSUES_EXPLAINER': JSON.stringify(''),
+    'MACRO.ISSUES_EXPLAINER': JSON.stringify(
+      'report issues at https://github.com/claude-code-best/claude-code/issues',
+    ),
     'MACRO.NATIVE_PACKAGE_URL': JSON.stringify(''),
     'MACRO.PACKAGE_URL': JSON.stringify(''),
     'MACRO.VERSION_CHANGELOG': JSON.stringify(''),
@@ -88,7 +90,7 @@ export const DEFAULT_BUILD_FEATURES = [
   // observation accumulation remain operator-discretion concerns.
   'EXPERIMENTAL_SKILL_SEARCH', // 技能搜索（bounded caches 已修复 overflow，内存问题已解决）
   'EXPERIMENTAL_SEARCH_EXTRA_TOOLS', // 工具搜索预取管道（TF-IDF 索引 + inter-turn 异步预取）
-  // 'SKILL_LEARNING',
+  'SKILL_LEARNING', // compiled in; runtime observers stay OFF until `/skill-learning start` (Hermes-style closed learning loop)
   // P3: poor mode
   'POOR', // 穷鬼模式，跳过 extract_memories/prompt_suggestion 减少消耗
   // Team Memory

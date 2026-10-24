@@ -40,6 +40,7 @@ import { getCurrentSessionTitle, sessionIdExists } from './sessionStorage.js'
 import { sleep } from './sleep.js'
 import { closeSentry } from './sentry.js'
 import { profileReport } from './startupProfiler.js'
+import { isChatGPTLoginActive } from './chatgptLoginSignals.js'
 
 /**
  * Clean up terminal modes synchronously before process exit.
@@ -249,6 +250,7 @@ export const setupGracefulShutdown = memoize(() => {
   onExit(() => {})
 
   process.on('SIGINT', () => {
+    if (isChatGPTLoginActive()) return
     // In print mode, print.ts registers its own SIGINT handler that aborts
     // the in-flight query and calls gracefulShutdown(0); skip here to
     // avoid racing with it. Only check print mode — other non-interactive
@@ -261,6 +263,7 @@ export const setupGracefulShutdown = memoize(() => {
     void gracefulShutdown(0)
   })
   process.on('SIGTERM', () => {
+    if (isChatGPTLoginActive()) return
     logForDiagnosticsNoPII('info', 'shutdown_signal', { signal: 'SIGTERM' })
     void gracefulShutdown(143) // Exit code 143 (128 + 15) for SIGTERM
   })

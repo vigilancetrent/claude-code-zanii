@@ -38,6 +38,11 @@ import type {
   AssistantMessage,
   UserMessage,
 } from '../../types/message'
+import {
+  buildResponsesRequest,
+  messagesWithResponsesState,
+} from '../../services/api/openai/responsesAdapter.js'
+import { asSystemPrompt } from '@ant/model-provider'
 
 // ─── Helpers ─────────────────────────────────────────────────────────────
 
@@ -502,6 +507,114 @@ describe('normalizeMessages', () => {
 })
 
 describe('normalizeMessagesForAPI', () => {
+  test('preserves one durable ChatGPT response state through split, JSON reload and API merge', () => {
+    const assistant = makeAssistantMsg([
+      { type: 'thinking', thinking: 'checking the file', signature: '' },
+      { type: 'text', text: 'I will read the fixture.' },
+      {
+        type: 'tool_use',
+        id: 'call_native',
+        name: 'Read',
+        input: { file_path: '/fixture.txt' },
+      },
+    ])
+    const state = {
+      accountKey: 'test-account',
+      model: 'test-model',
+      responseId: 'resp_native',
+      output: [
+        {
+          type: 'reasoning',
+          id: 'rs_native',
+          encrypted_content: 'opaque-test-state',
+          summary: [],
+        },
+        {
+          type: 'message',
+          role: 'assistant',
+          id: 'msg_native',
+          status: 'completed',
+          content: [
+            {
+              type: 'output_text',
+              text: 'I will read the fixture.',
+              annotations: [],
+            },
+          ],
+        },
+        {
+          type: 'function_call',
+          call_id: 'call_native',
+          name: 'Read',
+          namespace: 'local_tools',
+          arguments: '{"file_path":"/fixture.txt"}',
+        },
+      ],
+    }
+    assistant.message.chatgptResponses = state
+    const split = normalizeMessages([assistant]) as AssistantMessage[]
+    expect(
+      split.filter(message => message.message.chatgptResponses),
+    ).toHaveLength(1)
+    expect(split.at(-1)!.message.chatgptResponses).toEqual(state)
+    const reloaded = JSON.parse(JSON.stringify(split)) as AssistantMessage[]
+    const splitRequest = buildResponsesRequest({
+      model: 'test-model',
+      accountKey: 'test-account',
+      messages: messagesWithResponsesState(
+        reloaded,
+        asSystemPrompt(['Use local tools.']),
+      ),
+      tools: [],
+      toolChoice: undefined,
+      promptCacheKey: 'test-session',
+    })
+    expect(splitRequest.input).toEqual(state.output)
+    expect(
+      splitRequest.input.filter(item => item.type === 'message'),
+    ).toHaveLength(1)
+    expect(
+      splitRequest.input.some(
+        item => item.role === 'assistant' && item.type !== 'message',
+      ),
+    ).toBe(false)
+    expect(() =>
+      messagesWithResponsesState(reloaded.slice(-1), asSystemPrompt([])),
+    ).toThrow(/partial or edited native response/)
+    const normalized = normalizeMessagesForAPI([
+      ...reloaded,
+      createUserMessage({
+        content: [
+          {
+            type: 'tool_result',
+            tool_use_id: 'call_native',
+            content: 'fixture contents',
+          },
+        ],
+      }),
+    ])
+    const retained = normalized.filter(
+      message =>
+        message.type === 'assistant' && message.message.chatgptResponses,
+    )
+    expect(retained).toHaveLength(1)
+    expect(retained[0]!.message.chatgptResponses).toEqual(state)
+    const mergedRequest = buildResponsesRequest({
+      model: 'test-model',
+      accountKey: 'test-account',
+      messages: messagesWithResponsesState(
+        normalized,
+        asSystemPrompt(['Use local tools.']),
+      ),
+      tools: [],
+      toolChoice: undefined,
+      promptCacheKey: 'test-session',
+    })
+    expect(mergedRequest.input.slice(0, state.output.length)).toEqual(
+      state.output,
+    )
+  })
+
   test('preserves Gemini thought signature metadata on tool_use blocks', () => {
     const assistant = makeAssistantMsg([
       {

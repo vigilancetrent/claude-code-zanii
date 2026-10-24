@@ -22,6 +22,7 @@ import {
   ERROR_MESSAGE_USER_ABORT,
   type RecompactionInfo,
 } from './compact.js'
+import { getSettings_DEPRECATED } from '../../utils/settings/settings.js'
 import { runPostCompactCleanup } from './postCompactCleanup.js'
 import { trySessionMemoryCompaction } from './sessionMemoryCompact.js'
 
@@ -37,9 +38,15 @@ export function getEffectiveContextWindowSize(model: string): number {
   )
   let contextWindow = getContextWindowForModel(model, getSdkBetas())
 
-  const autoCompactWindow = process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
+  // /autocompact <tokens> (settings) or CLAUDE_CODE_AUTO_COMPACT_WINDOW (env)
+  const autoCompactWindow =
+    getSettings_DEPRECATED()?.autoCompactWindow ??
+    process.env.CLAUDE_CODE_AUTO_COMPACT_WINDOW
   if (autoCompactWindow) {
-    const parsed = parseInt(autoCompactWindow, 10)
+    const parsed =
+      typeof autoCompactWindow === 'number'
+        ? autoCompactWindow
+        : parseInt(autoCompactWindow, 10)
     if (!isNaN(parsed) && parsed > 0) {
       contextWindow = Math.min(contextWindow, parsed)
     }

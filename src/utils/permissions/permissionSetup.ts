@@ -6,6 +6,7 @@ import {
   handlePlanModeTransition,
   setHasExitedPlanMode,
   setNeedsAutoModeExitAttachment,
+  getIsNonInteractiveSession,
 } from '../../bootstrap/state.js'
 import type {
   ToolPermissionContext,
@@ -781,6 +782,7 @@ export function initialPermissionModeFromCLI({
         autoCircuitBroken: autoModeCircuitBrokenSync,
         autoDisabledBySettings: isAutoModeDisabledBySettings(),
         isRemote: isEnvTruthy(process.env.CLAUDE_CODE_REMOTE),
+        isNonInteractive: getIsNonInteractiveSession(),
       }) ?? 'default',
     )
   }

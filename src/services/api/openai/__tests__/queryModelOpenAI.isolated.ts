@@ -130,6 +130,7 @@ async function* eventStream(events: BetaRawMessageStreamEvent[]) {
 async function runQueryModel(
   events: BetaRawMessageStreamEvent[],
   envOverrides: Record<string, string | undefined> = {},
+  requestedModel = 'test-model',
 ) {
   // Wire events into the mocked stream adapter
   _nextEvents = events
@@ -152,7 +153,7 @@ async function runQueryModel(
     const otherOutputs: any[] = []
 
     const minimalOptions: any = {
-      model: 'test-model',
+      model: requestedModel,
       tools: [],
       agents: [],
       querySource: 'main_loop',
@@ -167,7 +168,7 @@ async function runQueryModel(
 
     for await (const item of queryModelOpenAI(
       [],
-      { type: 'text', text: '' } as any,
+      [] as any,
       [],
       new AbortController().signal,
       minimalOptions,
@@ -197,12 +198,15 @@ async function runQueryModel(
 // entire file, so we configure the stream per-test via a shared variable.
 let _nextEvents: BetaRawMessageStreamEvent[] = []
 let _searchExtraToolsEnabled = false
+let _useChatGPT = false
+const _costCalls: Array<{ cost: number; usage: unknown; model: string }> = []
 
 /** Captured arguments from the last chat.completions.create() call */
 let _lastCreateArgs: Record<string, any> | null = null
 
 mock.module('@ant/model-provider', () => ({
   resolveOpenAIModel: (m: string) => m,
+  asSystemPrompt: (value: string[]) => value,
   adaptOpenAIStreamToAnthropic: (_stream: any, _model: string) =>
     eventStream(_nextEvents),
   anthropicMessagesToOpenAI: (messages: any[]) =>
@@ -256,8 +260,11 @@ mock.module('../../../../services/analytics/growthbook.js', () => ({
 // Avoid partial mocks of bootstrap/state and envUtils — incomplete surfaces
 // break transitive named imports when this file is run alone.
 mock.module('../chatgptAuth.js', () => ({
-  isChatGPTAuthEnabled: () => false,
-  getValidChatGPTAuth: async () => null,
+  isChatGPTAuthEnabled: () => _useChatGPT,
+  getValidChatGPTAuth: async () => ({
+    accessToken: 'synthetic-access-not-real',
+    accountKey: 'test-account',
+  }),
 }))
 
 mock.module('bun:bundle', () => ({
@@ -284,6 +291,7 @@ mock.module('../streamAdapter.js', () => ({
 
 mock.module('../modelMapping.js', () => ({
   resolveOpenAIModel: (m: string) => m,
+  asSystemPrompt: (value: string[]) => value,
 }))
 
 mock.module('../convertMessages.js', () => ({
@@ -350,7 +358,9 @@ mock.module('../../../../tools/SearchExtraToolsTool/prompt.js', () => ({
 }))
 
 mock.module('../../../../cost-tracker.js', () => ({
-  addToTotalSessionCost: () => {},
+  addToTotalSessionCost: (cost: number, usage: unknown, model: string) => {
+    _costCalls.push({ cost, usage, model })
+  },
 }))
 
 mock.module('../../../../utils/modelCost.js', () => ({
@@ -363,7 +373,7 @@ mock.module('../../../../utils/modelCost.js', () => ({
   getOpus46CostTier: () => ({}),
   MODEL_COSTS: {},
   getModelCosts: () => ({}),
-  calculateUSDCost: () => 0,
+  calculateUSDCost: () => 123,
   calculateCostFromTokens: () => 0,
   formatModelPricing: () => '',
   getModelPricingString: () => undefined,
@@ -683,7 +693,7 @@ describe('queryModelOpenAI — deferred MCP tool visibility', () => {
 
       for await (const _item of queryModelOpenAI(
         [],
-        { type: 'text', text: '' } as any,
+        [] as any,
         tools as any,
         new AbortController().signal,
         options,
@@ -698,5 +708,132 @@ describe('queryModelOpenAI — deferred MCP tool visibility', () => {
     } finally {
       _searchExtraToolsEnabled = false
     }
+  })
+})
+
+describe('queryModelOpenAI subscription integration', () => {
+  async function runSubscription(responseEvents: Record<string, unknown>[]) {
+    const savedFetch = globalThis.fetch
+    _useChatGPT = true
+    _lastCreateArgs = null
+    _costCalls.length = 0
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      if (String(input).endsWith('/models')) {
+        return Response.json({
+          models: [
+            {
+              slug: 'test-model',
+              display_name: 'Test model',
+              visibility: 'list',
+            },
+          ],
+        })
+      }
+      return new Response(
+        responseEvents
+          .map(event => `data: ${JSON.stringify(event)}\n\n`)
+          .join(''),
+        {
+          headers: { 'content-type': 'text/event-stream' },
+        },
+      )
+    }) as typeof fetch
+    try {
+      return await runQueryModel([], {}, 'sonnet')
+    } finally {
+      _useChatGPT = false
+      globalThis.fetch = savedFetch
+    }
+  }
+
+  test('persists completed native state and records token usage without API-dollar estimates', async () => {
+    const output = [
+      {
+        type: 'reasoning',
+        id: 'rs_main',
+        encrypted_content: 'opaque-test-state',
+        summary: [],
+      },
+      {
+        type: 'function_call',
+        id: 'fc_main',
+        name: 'read_file',
+        namespace: 'local_tools',
+        call_id: 'call_main',
+        arguments: '{}',
+        status: 'completed',
+      },
+    ]
+    const result = await runSubscription([
+      {
+        type: 'response.completed',
+        response: {
+          id: 'resp_main',
+          status: 'completed',
+          output,
+          usage: { input_tokens: 11, output_tokens: 7 },
+        },
+      },
+    ])
+    expect(_lastCreateArgs).toBeNull()
+    expect(result.assistantMessages).toHaveLength(1)
+    expect(result.assistantMessages[0]!.message.chatgptResponses).toEqual({
+      accountKey: 'test-account',
+      model: 'test-model',
+      responseId: 'resp_main',
+      output,
+    })
+    expect(result.assistantMessages[0]!.message.stop_reason).toBe('tool_use')
+    expect(_costCalls).toEqual([
+      {
+        cost: 0,
+        model: 'test-model',
+        usage: {
+          input_tokens: 11,
+          output_tokens: 7,
+          cache_creation_input_tokens: 0,
+          cache_read_input_tokens: 0,
+        },
+      },
+    ])
+  })
+
+  test.each([
+    'response.incomplete',
+    'response.failed',
+    'EOF',
+  ])('does not finalize tools or switch to API keys on %s', async terminal => {
+    const values: Record<string, unknown>[] = [
+      {
+        type: 'response.output_item.added',
+        item: {
+          type: 'function_call',
+          call_id: 'call_uncommitted',
+          name: 'read_file',
+        },
+      },
+      {
+        type: 'response.function_call_arguments.delta',
+        output_index: 0,
+        delta: '{}',
+      },
+    ]
+    if (terminal !== 'EOF')
+      values.push({
+        type: terminal,
+        response: {
+          status: 'incomplete',
+          error: { code: 'usage_limit', message: 'private-upstream-body' },
+        },
+      })
+    const result = await runSubscription(values)
+    expect(_lastCreateArgs).toBeNull()
+    expect(_costCalls).toHaveLength(0)
+    expect(result.assistantMessages).toHaveLength(1)
+    expect(JSON.stringify(result.assistantMessages)).not.toContain('tool_use')
+    expect(JSON.stringify(result.assistantMessages)).not.toContain(
+      'private-upstream-body',
+    )
+    expect(result.assistantMessages[0]!.message.apiError).toBe('api_error')
   })
 })

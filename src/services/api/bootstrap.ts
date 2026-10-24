@@ -16,6 +16,11 @@ import { getAPIProvider } from '../../utils/model/providers.js'
 import { isEssentialTrafficOnly } from '../../utils/privacyLevel.js'
 import { getClaudeCodeUserAgent } from '../../utils/userAgent.js'
 import type { ModelOption } from '../../utils/model/modelOptions.js'
+import {
+  getValidChatGPTAuth,
+  isChatGPTAuthEnabled,
+} from './openai/chatgptAuth.js'
+import { fetchChatGPTModelCatalog } from './openai/chatgptModels.js'
 
 const bootstrapResponseSchema = lazySchema(() =>
   z.object({
@@ -158,6 +163,10 @@ export async function fetchBootstrapData(): Promise<void> {
     let additionalModelOptions: ModelOption[] | null = null
 
     if (getAPIProvider() === 'openai') {
+      if (isChatGPTAuthEnabled()) {
+        await fetchChatGPTModelCatalog(await getValidChatGPTAuth())
+        return
+      }
       // OpenAI-compatible provider: list models straight from the server
       // instead of Anthropic's bootstrap endpoint.
       additionalModelOptions = await fetchOpenAICompatibleModelOptions()

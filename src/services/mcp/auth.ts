@@ -1351,6 +1351,16 @@ export async function performMCPOAuthFlow(
  * With this flag set, tokens() omits refresh_token so the SDK falls through
  * to the PKCE flow. See github.com/anthropics/claude-code/issues/28258.
  */
+// Last scope a server demanded via 403 insufficient_scope, by server name.
+// Read when surfacing the tool-call error so the user sees *which* scope.
+const lastInsufficientScope = new Map<string, string>()
+
+export function getLastInsufficientScope(
+  serverName: string,
+): string | undefined {
+  return lastInsufficientScope.get(serverName)
+}
+
 export function wrapFetchWithStepUpDetection(
   baseFetch: FetchLike,
   provider: ClaudeAuthProvider,
@@ -1366,6 +1376,7 @@ export function wrapFetchWithStepUpDetection(
         const scope = match?.[1] ?? match?.[2]
         if (scope) {
           provider.markStepUpPending(scope)
+          lastInsufficientScope.set(provider.getServerName(), scope)
         }
       }
     }
@@ -1465,6 +1476,10 @@ export class ClaudeAuthProvider implements OAuthClientProvider {
    * RFC 6749 §6 forbids scope elevation via refresh, so refreshing would just
    * return the same-scoped token and the retry would 403 again.
    */
+  getServerName(): string {
+    return this.serverName
+  }
+
   markStepUpPending(scope: string): void {
     this._pendingStepUpScope = scope
     logMCPDebug(this.serverName, `Marked step-up pending: ${scope}`)

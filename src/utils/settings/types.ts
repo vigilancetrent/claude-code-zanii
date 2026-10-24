@@ -370,7 +370,7 @@ export const SettingsSchema = lazySchema(() =>
         .optional()
         .describe(
           'API provider type. "anthropic" uses the Anthropic API (default), "openai" uses the OpenAI Chat Completions API, "gemini" uses the Gemini API, and "grok" uses the xAI Grok API (OpenAI-compatible). ' +
-            'When set to "openai", configure OPENAI_API_KEY, OPENAI_BASE_URL, and OPENAI_MODEL. When set to "gemini", configure GEMINI_API_KEY and optional GEMINI_BASE_URL. When set to "grok", configure GROK_API_KEY (or XAI_API_KEY), optional GROK_BASE_URL, GROK_MODEL, and GROK_MODEL_MAP.',
+            'When set to "openai", use /login to authorize ChatGPT plan usage (OPENAI_AUTH_MODE=chatgpt), or configure OPENAI_API_KEY, OPENAI_BASE_URL, and OPENAI_MODEL for API billing. When set to "gemini", configure GEMINI_API_KEY and optional GEMINI_BASE_URL. When set to "grok", configure GROK_API_KEY (or XAI_API_KEY), optional GROK_BASE_URL, GROK_MODEL, and GROK_MODEL_MAP.',
         ),
       model: z
         .string()
@@ -472,6 +472,41 @@ export const SettingsSchema = lazySchema(() =>
         .optional()
         .describe(
           'Max characters of background task output kept inline before truncation (default 32000, max 160000)',
+        ),
+      modelPricing: z
+        .record(
+          z.string(),
+          z.object({
+            input: z.number().nonnegative(),
+            output: z.number().nonnegative(),
+            cacheRead: z.number().nonnegative().optional(),
+            cacheWrite: z.number().nonnegative().optional(),
+          }),
+        )
+        .optional()
+        .describe(
+          'USD per million tokens by model id (exact or prefix match) so /cost is right for OpenAI-compatible, Gemini and local models.',
+        ),
+      planModel: z
+        .string()
+        .optional()
+        .describe(
+          'Model to use while in plan mode (architect/editor split); the session model handles execution. Any provider.',
+        ),
+      repoMap: z
+        .boolean()
+        .optional()
+        .describe(
+          'Inject a ranked map of exported symbols (CodeGraph) into the system prompt so the model knows the codebase shape without grepping.',
+        ),
+      postEditChecks: z
+        .object({
+          lint: z.string().optional(),
+          test: z.string().optional(),
+        })
+        .optional()
+        .describe(
+          'Shell commands run after every Edit/Write/NotebookEdit; non-zero exit feeds the output back to the model (synthesized PostToolUse hook).',
         ),
       maxSubagentDepth: z
         .number()

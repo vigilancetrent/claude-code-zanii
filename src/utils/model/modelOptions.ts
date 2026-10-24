@@ -33,11 +33,7 @@ import {
 } from './model.js'
 import { has1mContext } from '../context.js'
 import { getGlobalConfig } from '../config.js'
-import {
-  CHATGPT_CODEX_DEFAULT_MODEL,
-  CHATGPT_CODEX_MODEL_OPTIONS,
-  isChatGPTAuthMode,
-} from './chatgptModels.js'
+import { getChatGPTModelCatalog, isChatGPTAuthMode } from './chatgptModels.js'
 
 // @[MODEL LAUNCH]: Update all the available and default model option strings below.
 
@@ -342,14 +338,16 @@ function getOpusPlanOption(): ModelOption {
 }
 
 function getChatGPTCodexModelOptions(): ModelOption[] {
+  const models = getChatGPTModelCatalog()
   return [
     {
       value: null,
       label: 'Default (recommended)',
-      description: `Use the default ChatGPT Codex model (currently ${CHATGPT_CODEX_DEFAULT_MODEL})`,
-      descriptionForModel: `Default ChatGPT Codex model (currently ${CHATGPT_CODEX_DEFAULT_MODEL})`,
+      description: models[0]
+        ? `Use ${models[0].label} from your account catalog`
+        : 'Load your ChatGPT account catalog to select a model',
     },
-    ...CHATGPT_CODEX_MODEL_OPTIONS.map(model => ({
+    ...models.map(model => ({
       value: model.value,
       label: model.label,
       description: model.description,
@@ -571,7 +569,11 @@ export function getModelOptions(fastMode = false): ModelOption[] {
   }
 
   // Append additional model options fetched during bootstrap
-  for (const opt of getGlobalConfig().additionalModelOptionsCache ?? []) {
+  const additionalOptions =
+    getAPIProvider() === 'openai' && isChatGPTAuthMode()
+      ? []
+      : (getGlobalConfig().additionalModelOptionsCache ?? [])
+  for (const opt of additionalOptions) {
     if (!options.some(existing => existing.value === opt.value)) {
       options.push(opt)
     }

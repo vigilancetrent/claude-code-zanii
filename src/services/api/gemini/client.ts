@@ -28,6 +28,7 @@ export async function* streamGeminiGenerateContent(params: {
   body: GeminiGenerateContentRequest
   signal: AbortSignal
   fetchOverride?: typeof fetch
+  extraHeaders?: Record<string, string>
 }): AsyncGenerator<GeminiStreamChunk, void> {
   const fetchImpl = params.fetchOverride ?? fetch
   const url = `${getGeminiBaseUrl()}/${getGeminiModelPath(params.model)}:streamGenerateContent?alt=sse`
@@ -37,6 +38,7 @@ export async function* streamGeminiGenerateContent(params: {
     headers: {
       'Content-Type': 'application/json',
       'x-goog-api-key': process.env.GEMINI_API_KEY || '',
+      ...params.extraHeaders,
     },
     body: JSON.stringify(params.body),
     signal: params.signal,

@@ -49,7 +49,32 @@ function getHooksFromAllowedSources(): HooksSettings {
   }
 
   // Otherwise, use all hooks (merged from all sources) - backwards compatible
-  return mergedSettings.hooks ?? {}
+  return withPostEditChecks(mergedSettings.hooks ?? {}, mergedSettings)
+}
+
+/**
+ * settings.postEditChecks → one synthesized PostToolUse hook on the edit
+ * tools (Aider's --auto-lint/--auto-test). A failing command's output
+ * reaches the model like any other hook error; nothing else changes.
+ */
+export function withPostEditChecks(
+  hooks: HooksSettings,
+  settings: { postEditChecks?: { lint?: string; test?: string } },
+): HooksSettings {
+  const cmds = [settings.postEditChecks?.lint, settings.postEditChecks?.test]
+    .filter((c): c is string => typeof c === 'string' && c.trim().length > 0)
+    .map(c => c.trim())
+  if (cmds.length === 0) return hooks
+  return {
+    ...hooks,
+    PostToolUse: [
+      ...(hooks.PostToolUse ?? []),
+      {
+        matcher: 'Edit|Write|NotebookEdit',
+        hooks: cmds.map(command => ({ type: 'command' as const, command })),
+      },
+    ],
+  }
 }
 
 /**

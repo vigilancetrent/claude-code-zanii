@@ -1,6 +1,6 @@
 import capitalize from 'lodash-es/capitalize.js';
 import * as React from 'react';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { has1mContext } from '../utils/context.js';
 import { useExitOnCtrlCDWithKeybindings } from 'src/hooks/useExitOnCtrlCDWithKeybindings.js';
 import {
@@ -36,8 +36,12 @@ import { getModelOptions } from '../utils/model/modelOptions.js';
 import { getSettingsForSource, updateSettingsForSource } from '../utils/settings/settings.js';
 import { ConfigurableShortcutHint } from './ConfigurableShortcutHint.js';
 import { Select } from './CustomSelect/index.js';
-import { Byline, KeyboardShortcutHint, Pane } from '@anthropic/ink';
+import { Byline, KeyboardShortcutHint, Link, Pane } from '@anthropic/ink';
 import { effortLevelToSymbol } from './EffortIndicator.js';
+import { getAPIProvider } from '../utils/model/providers.js';
+import { CHATGPT_USAGE_URL, isChatGPTAuthMode } from '../utils/model/chatgptModels.js';
+import { getValidChatGPTAuth } from '../services/api/openai/chatgptAuth.js';
+import { fetchChatGPTModelCatalog } from '../services/api/openai/chatgptModels.js';
 
 export type Props = {
   initial: string | null;
@@ -72,6 +76,28 @@ export function ModelPicker({
   const setAppState = useSetAppState();
   const exitState = useExitOnCtrlCDWithKeybindings();
   const maxVisible = 10;
+  const chatgpt = getAPIProvider() === 'openai' && isChatGPTAuthMode();
+  const [catalogVersion, setCatalogVersion] = useState(0);
+  const [catalogError, setCatalogError] = useState<string | null>(null);
+  const [catalogLoading, setCatalogLoading] = useState(chatgpt);
+  useEffect(() => {
+    if (!chatgpt) return;
+    const controller = new AbortController();
+    async function loadCatalog() {
+      try {
+        const auth = await getValidChatGPTAuth(controller.signal);
+        await fetchChatGPTModelCatalog(auth, controller.signal);
+        if (!controller.signal.aborted) setCatalogVersion(value => value + 1);
+      } catch (error) {
+        if (!controller.signal.aborted)
+          setCatalogError(error instanceof Error ? error.message : 'Unable to load ChatGPT models.');
+      } finally {
+        if (!controller.signal.aborted) setCatalogLoading(false);
+      }
+    }
+    void loadCatalog();
+    return () => controller.abort();
+  }, [chatgpt]);
 
   const initialValue = initial === null ? NO_PREFERENCE : initial;
   const [focusedValue, setFocusedValue] = useState<string | undefined>(initialValue);
@@ -79,11 +105,11 @@ export function ModelPicker({
   const isFastMode = useAppState(s => (isFastModeEnabled() ? s.fastMode : false));
 
   const [marked1MValues, setMarked1MValues] = useState<Set<string>>(
-    () => new Set(has1mContext(initialValue) ? [initialValue.replace(/\[1m\]/i, '')] : []),
+    () => new Set(!chatgpt && has1mContext(initialValue) ? [initialValue.replace(/\[1m\]/i, '')] : []),
   );
 
   const handleToggle1M = useCallback(() => {
-    if (!focusedValue || focusedValue === NO_PREFERENCE) return;
+    if (chatgpt || !focusedValue || focusedValue === NO_PREFERENCE) return;
     // Key on the base value so lookups in handleSelect / is1MMarked match the
     // initializer — predefined 1M options arrive with a `[1m]` suffix in
     // `focusedValue`, which would diverge from the base-value key set.
@@ -97,7 +123,7 @@ export function ModelPicker({
       }
       return next;
     });
-  }, [focusedValue]);
+  }, [chatgpt, focusedValue]);
 
   const [hasToggledEffort, setHasToggledEffort] = useState(false);
   const effortValue = useAppState(s => s.effortValue);
@@ -106,7 +132,7 @@ export function ModelPicker({
   );
 
   // Memoize all derived values to prevent re-renders
-  const modelOptions = useMemo(() => getModelOptions(isFastMode ?? false), [isFastMode]);
+  const modelOptions = useMemo(() => getModelOptions(isFastMode ?? false), [isFastMode, catalogVersion]);
 
   // Ensure the initial value is in the options list
   // This handles edge cases where the user's current model (e.g., 'haiku' for 3P users)
@@ -226,7 +252,7 @@ export function ModelPicker({
     // base form — not `value`, which may carry a `[1m]` suffix from predefined
     // 1M options and would never match.
     const baseValue = value.replace(/\[1m\]/i, '');
-    const wants1M = marked1MValues.has(baseValue);
+    const wants1M = !chatgpt && marked1MValues.has(baseValue);
     const finalValue = wants1M ? `${baseValue}[1m]` : baseValue;
     onSelect(finalValue, selectedEffort);
   }
@@ -240,8 +266,17 @@ export function ModelPicker({
           </Text>
           <Text dimColor>
             {headerText ??
-              'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context.'}
+              (chatgpt
+                ? 'Choose a model from your ChatGPT account catalog. Access is checked on each request.'
+                : 'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context.')}
           </Text>
+          {catalogLoading && <Text dimColor>Loading ChatGPT models…</Text>}
+          {catalogError && <Text color="error">{catalogError}</Text>}
+          {chatgpt && (
+            <Text dimColor>
+              Using ChatGPT plan · <Link url={CHATGPT_USAGE_URL}>Manage usage</Link>
+            </Text>
+          )}
           {sessionModel && (
             <Text dimColor>
               Currently using {modelDisplayString(sessionModel)} for this session (set by plan mode). Selecting a model
@@ -281,7 +316,7 @@ export function ModelPicker({
               {focusedModelName ? ` for ${focusedModelName}` : ''}
             </Text>
           )}
-          {is1MMarked ? (
+          {chatgpt ? null : is1MMarked ? (
             <Text dimColor>
               <EffortLevelIndicator effort={'high'} /> 1M context on
               <Text color="subtle"> · Space to toggle</Text>

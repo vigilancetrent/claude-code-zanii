@@ -250,6 +250,11 @@ export type HookInput =
       file_path: string
       event: 'change' | 'add' | 'unlink'
     })
+  | (HookInputBase & {
+      hook_event_name: 'Interrupt'
+      reason: 'user_cancel'
+      query_in_flight: boolean
+    })
 
 export type AsyncHookJSONOutput = {
   async: true
@@ -344,6 +349,10 @@ export type ConfigChangeHookInput = HookInput
 export type InstructionsLoadedHookInput = HookInput
 export type CwdChangedHookInput = HookInput & { cwd: string }
 export type FileChangedHookInput = HookInput & { path: string }
+export type InterruptHookInput = HookInput & {
+  reason: 'user_cancel'
+  query_in_flight: boolean
+}
 
 // SDK Message types
 export type SDKMessage = { type: string; [key: string]: unknown }

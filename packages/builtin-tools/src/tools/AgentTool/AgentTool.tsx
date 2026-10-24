@@ -80,6 +80,7 @@ import {
   runAsyncAgentLifecycle,
 } from './agentToolUtils.js';
 import { GENERAL_PURPOSE_AGENT } from './built-in/generalPurposeAgent.js';
+import { canSpawnAtDepth, getMaxConcurrentSubagents, getMaxSubagentSpawnDepth } from './limits.js';
 import { AGENT_TOOL_NAME, LEGACY_AGENT_TOOL_NAME, ONE_SHOT_BUILTIN_AGENT_TYPES } from './constants.js';
 import {
   buildForkedMessages,
@@ -343,6 +344,22 @@ export const AgentTool = buildTool({
     // Get app state for permission mode and agent filtering
     const appState = toolUseContext.getAppState();
     const permissionMode = appState.toolPermissionContext.mode;
+
+    // Nesting depth (forks keep the tool, so the check has to live here too)
+    if (!canSpawnAtDepth(toolUseContext.agentDepth)) {
+      throw new Error(
+        `Subagent nesting depth limit reached (${getMaxSubagentSpawnDepth()}). Do the work directly with your other tools.`,
+      );
+    }
+    // Concurrency cap: running local agents across the whole session
+    const runningAgents = Object.values(appState.tasks).filter(
+      t => t.type === 'local_agent' && (t.status === 'running' || t.status === 'pending'),
+    ).length;
+    if (runningAgents >= getMaxConcurrentSubagents()) {
+      throw new Error(
+        `Concurrent subagent limit reached (${getMaxConcurrentSubagents()}). Wait for a running agent to finish or raise CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS.`,
+      );
+    }
     // In-process teammates get a no-op setAppState; setAppStateForTasks
     // reaches the root store so task registration/progress/kill stay visible.
     const rootSetAppState = toolUseContext.setAppStateForTasks ?? toolUseContext.setAppState;

@@ -22,10 +22,16 @@ import { AuthPlaneSummary } from './AuthPlaneSummary.js';
 import { getAuthStatus } from './getAuthStatus.js';
 import { WorkspaceKeyInputContainer } from './WorkspaceKeyInput.js';
 import { removeWorkspaceKey } from '../../services/auth/saveWorkspaceKey.js';
+import { getChatGPTAuthStatus } from '../../services/api/openai/chatgptAuth.js';
 
 export async function call(onDone: LocalJSXCommandOnDone, context: LocalJSXCommandContext): Promise<React.ReactNode> {
-  // Snapshot auth state once at call time (pure, no network)
-  const authStatus = getAuthStatus();
+  const authStatus = getAuthStatus(
+    await getChatGPTAuthStatus().catch(() => ({
+      loggedIn: false,
+      planUsageEnabled: false,
+      unavailable: true,
+    })),
+  );
 
   return (
     <Login
@@ -88,9 +94,14 @@ export function Login(props: {
   // Source distinguishes env-var (cannot be deleted from UI) vs settings-saved
   const workspaceKeyFromSettings = workspaceKeySet && liveAuthStatus.workspaceKey.source === 'settings';
 
-  const refreshLiveStatus = React.useCallback(() => {
+  const refreshLiveStatus = React.useCallback(async () => {
     const { getAuthStatus } = require('./getAuthStatus.js') as typeof import('./getAuthStatus.js');
-    setLiveAuthStatus(getAuthStatus());
+    const chatgpt = await getChatGPTAuthStatus().catch(() => ({
+      loggedIn: false,
+      planUsageEnabled: false,
+      unavailable: true,
+    }));
+    setLiveAuthStatus(getAuthStatus(chatgpt));
   }, []);
 
   // W = enter/replace key; D = delete (only when stored in settings)
@@ -103,7 +114,7 @@ export function Login(props: {
           void (async () => {
             try {
               await removeWorkspaceKey();
-              refreshLiveStatus();
+              await refreshLiveStatus();
               setRemoveState({ phase: 'idle' });
             } catch (err) {
               setRemoveState({
@@ -132,7 +143,7 @@ export function Login(props: {
   );
 
   const handleWorkspaceKeySaved = React.useCallback(() => {
-    refreshLiveStatus();
+    void refreshLiveStatus();
     setShowWorkspaceKeyInput(false);
   }, [refreshLiveStatus]);
 

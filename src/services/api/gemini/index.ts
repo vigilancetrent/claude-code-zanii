@@ -32,7 +32,6 @@ import {
   convertToolsToLangfuse,
 } from '../../../services/langfuse/convert.js'
 import { streamGeminiGenerateContent } from './client.js'
-import { getGatewayHintHeaders } from '../gatewayHints.js'
 import {
   anthropicMessagesToGemini,
   resolveGeminiModel,
@@ -112,11 +111,6 @@ export async function* queryModelGemini(
       model: geminiModel,
       signal,
       fetchOverride: options.fetchOverride as typeof fetch | undefined,
-      extraHeaders: getGatewayHintHeaders({
-        querySource: options.querySource,
-        agentId: options.agentId,
-        messages,
-      }),
       body: {
         contents,
         ...(systemInstruction && { systemInstruction }),
