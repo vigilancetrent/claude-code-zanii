@@ -293,6 +293,7 @@ import { resolveAgentTools } from '@claude-code-best/builtin-tools/tools/AgentTo
 import { resumeAgentBackground } from '@claude-code-best/builtin-tools/tools/AgentTool/resumeAgent.js';
 import { useMainLoopModel } from '../hooks/useMainLoopModel.js';
 import { useAppState, useSetAppState, useAppStateStore } from '../state/AppState.js';
+import { focusMessages } from '../utils/focusView.js';
 import { onTranscriptSearchRequest } from '../utils/transcriptSearchRequest.js';
 import { abortSessionStartHooks } from '../utils/sessionStart.js';
 import { useKeybinding } from '../keybindings/useKeybinding.js';
@@ -5694,12 +5695,13 @@ export function REPL({
     });
     return [...stripped.slice(0, insertAt), synthetic, ...stripped.slice(insertAt)];
   }, [viewedAgentTask, rawAgentMessages]);
+  const focusMode = useAppState(s => s.focusMode);
   const unfocusedMessages = viewedAgentTask
     ? (displayedAgentMessages ?? [])
     : usesSyncMessages
       ? messages
       : deferredMessages;
-  const displayedMessages = unfocusedMessages;
+  const displayedMessages = focusMode ? focusMessages(unfocusedMessages) : unfocusedMessages;
 
   if (screen === 'transcript') {
     // Virtual scroll replaces the 30-message cap: everything is scrollable

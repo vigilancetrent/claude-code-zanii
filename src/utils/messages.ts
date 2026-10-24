@@ -4590,6 +4590,11 @@ You have exited auto mode. The user may now want to interact more directly. You 
           isMeta: true,
         }),
       ]
+    case 'repeated_failure': {
+      return wrapMessagesInSystemReminder([
+        createUserMessage({ content: attachment.text, isMeta: true }),
+      ])
+    }
     case 'compaction_reminder': {
       return wrapMessagesInSystemReminder([
         createUserMessage({

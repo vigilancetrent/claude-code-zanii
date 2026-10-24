@@ -1,5 +1,57 @@
 # DEV-LOG
 
+## v2.14.1 README：Why CCZ (2026-09-17)
+
+README 新增 "Why CCZ" 对比表（CCZ vs Claude Code / Codex CLI / OpenCode / Aider，17 个维度，每行对应仓库内已有代码或文档），同步到 npm 包页。仅文档，无代码变更。
+
+---
+
+## v2.14.0 自我改进闭环 + /run /verify (2026-09-17)
+
+之前明确放弃的两项（"meta-harness 研究级"、"RUN_SKILL_GENERATOR 文件不存在"）现在都做了，取有界版本：
+- **`/harness-improve`**：`src/utils/harnessMining.ts` 对本项目最近 20 个会话 transcript 做确定性挖掘（按工具+命令前缀的失败次数、权限拒绝、3 次同样调用连续失败、用户纠正语句、`/undo`、中断），报告嵌入 skill prompt；模型只能提出 ≤3 条对 CLAUDE.md / hooks / permissions / skills / `postEditChecks` 的小改动，每条必须带证据 + 可证伪预测，先问再改，记入 `.claude/harness-ledger.md`，下次运行回看预测是否成立。不动代码/测试/CI。
+- **`/run` + `/run-skill-generator`**：`src/skills/bundled/runSkillGenerator.ts`。generator 读 package.json / Makefile / Dockerfile / CI 等推出构建、启动、就绪信号、入口、停止方式，实跑一次后写 `.claude/skills/run/SKILL.md`；`/run` 与 `/verify` 都优先按该文件启动应用。`RUN_SKILL_GENERATOR` 重新加入 `DEFAULT_BUILD_FEATURES`。
+- **`/verify` 对所有用户开放**（此前 `USER_TYPE=ant` 才注册），`verify/SKILL.md` 与 examples 从 8 字节 stub 换成真实流程（启动 → 走黄金路径 → 边界输入 → 停止 → PASS/FAIL/NOT VERIFIED 表）。
+- `initBundledSkills` 整体 try/catch：任何 bundled skill 缺失/抛错都退化为"该 skill 不存在"，不再挂起启动。
+
+---
+
+## v2.13.0 更聪明的循环 (2026-09-17)
+
+调研见 `docs/harness-gap-research-2026-09.md` §8。CCZ 的规划/验证/记忆/工具披露/护栏已是上游水准；让它在本地模型上"显得笨"的是三个没编译进去的恢复开关和一个错误的上下文窗口假设：
+- 编译进 `REACTIVE_COMPACT`（prompt-too-long 时先压缩再重试，而不是结束回合）、`UNATTENDED_RETRY`（仍需 `CLAUDE_CODE_UNATTENDED_RETRY=1`）、`POWERSHELL_AUTO_MODE`、`QUICK_SEARCH`、`SKILL_IMPROVEMENT`。
+- `modelCapabilities.ts` 对 OpenAI 兼容端点也拉 `/v1/models`，从 vLLM `max_model_len` / llama.cpp `meta.n_ctx` / `context_length` 得到真实上下文长度；`context.ts` 对该 provider 接受任意大小。`model_gateway` 透传后端模型元数据。
+- `repeatedFailure.ts`：同一工具调用连续失败 3 次 → 注入 system reminder 要求换思路或提问，避免本地模型死循环。
+
+---
+
+## v2.12.4 移除 postinstall (2026-09-17)
+
+npm ≥ 11 对任何声明 `postinstall` 的包都会打 `allow-scripts` 警告。ripgrep 已在首次使用时自动下载（`ensureRipgrepAvailable`），Chrome native host 在启用 Chrome 集成时注册，所以 `postinstall` 已无必要，直接删除；保留 `npm run setup:ripgrep` / `setup:chrome` 作为显式入口。顺带修正源码模式下 rg 路径（`src/utils/vendor/ripgrep`，此前错误地找 `<root>/vendor/ripgrep`）。剩余的一行警告来自依赖 `@claude-code-best/mcp-chrome-bridge` 自己的脚本，仅影响可选的 12306 桥接。
+
+---
+
+## v2.12.3 reasoning_effort 自适应 (2026-09-17)
+
+OpenAI 兼容服务器对 `reasoning_effort` 的合法取值各不相同（llama.cpp 上 Qwen 模板只接受 xhigh/medium/low，发 `high` 直接 Jinja 500）。`requestBody.ts`：被拒后解析错误文本里的 "Supported types are …"，按 model 记住最接近的取值（同距离取更高档）或不再发送该字段，然后重试一次；后续请求直接用记住的值。
+
+---
+
+## v2.12.2 图片粘贴无响应 + /model 被 OPENAI_MODEL 覆盖 (2026-09-17)
+
+- `model_gateway/gateway.py` 流式路径曾把后端 4xx 以 HTTP 200 转发（body 是 JSON error），OpenAI SDK 解析不到任何 SSE 事件 → 整轮无输出。现在先打开上游流、按真实状态码返回错误。
+- `src/services/api/openai/client.ts#coerceStreamErrorBody`：对流式请求偷看首字节，`{` 开头的 JSON error 重新包装成 4xx Response 让 SDK 正常抛错；真正的 SSE 原样回放。
+- `src/services/api/openai/index.ts`：零事件流 → 显式 "empty response" 错误；400 且提示 multimodal/image/vision → `stripImageBlocks` 去掉全部图片块（留 `[image omitted: …]` 注记）后重试一次，纯文本模型（glm-4.7-flash、llama.cpp 上的 qwen3.8-27b）会回答"我看不到图片"而不是死转。
+- `modelMapping.ts#resolveOpenAIModel`：`OPENAI_MODEL` 只作为 Claude 风格模型名的默认映射；`/model` 选中的服务器模型 id 或 `--model` 现在真正生效（此前状态栏显示 qwen 但请求仍发往 glm）。
+
+---
+
+## v2.12.1 ripgrep 自愈 (2026-09-17)
+
+npm ≥ 11 默认跳过 postinstall（`allow-scripts`），平台 ripgrep 二进制可能缺失。`src/utils/ripgrep.ts#ensureRipgrepAvailable` 在启动时后台、首次 Grep 时同步地运行同一个 `scripts/postinstall.cjs` 下载它，失败则回退系统 `rg`。README 相应精简。
+
+---
+
 ## v2.12.0 Harness parity + 竞品机制 (2026-09-17)
 
 对齐上游 Claude Code 2.1.274（CCZ 原基线 ≈2.1.12x），并补齐 Hermes / Amp / OpenCode / Aider 的招牌机制。调研：`docs/harness-gap-research-2026-09.md`；计划与逐阶段记录：`tasks/todo.md`；用户向说明：`docs/features/harness-parity-2026-09.md`。分支 `feat/harness-gap-2026-09`，18 个 commit，`bun run precheck` 全绿（6089 tests）。

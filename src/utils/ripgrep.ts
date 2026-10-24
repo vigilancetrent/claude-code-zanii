@@ -55,7 +55,12 @@ export const getRipgrepConfig = memoize((): RipgrepConfig => {
     }
   }
 
-  const rgRoot = path.resolve(__dirname, 'vendor', 'ripgrep')
+  // dist/vendor/ripgrep in a build; src/utils/vendor/ripgrep when running
+  // from source (distRoot is the project root there, not src/).
+  const rgRoot =
+    path.basename(__dirname) === 'dist'
+      ? path.resolve(__dirname, 'vendor', 'ripgrep')
+      : path.resolve(__dirname, 'src', 'utils', 'vendor', 'ripgrep')
   const command =
     process.platform === 'win32'
       ? path.resolve(rgRoot, `${process.arch}-win32`, 'rg.exe')
@@ -112,8 +117,54 @@ export function resolveBuiltinWithFallback(
     mode: 'builtin',
     command: builtinPath,
     args: [],
-    note: `no ripgrep available on ${p}; install ripgrep via apt/pkg/brew`,
+    // npm ≥ 11 skips postinstall unless the package is allow-listed — that is
+    // the step that downloads rg. ensureRipgrepAvailable() runs it for us.
+    note: `no ripgrep available on ${p}; fetching the builtin binary in the background (or install ripgrep via apt/pkg/brew)`,
   }
+}
+
+// npm ≥ 11 skips postinstall unless allow-listed, so the vendored rg for
+// this platform may simply not be there. Instead of telling the user to run
+// a command, run the same download script ourselves, once, on first need.
+let autoInstall: Promise<void> | null = null
+
+function packageRoot(): string {
+  return path.basename(distRoot) === 'dist' ? path.dirname(distRoot) : distRoot
+}
+
+export function ensureRipgrepAvailable(): Promise<void> {
+  const cfg = getRipgrepConfig()
+  const missing =
+    cfg.mode === 'builtin' && cfg.note?.startsWith('no ripgrep available')
+  if (!missing) return Promise.resolve()
+  autoInstall ??= (async () => {
+    const script = path.join(packageRoot(), 'scripts', 'postinstall.cjs')
+    if (!existsSync(script)) return
+    logForDebugging(`[ripgrep] builtin binary missing; running ${script}`)
+    await new Promise<void>(resolve => {
+      const child = spawn(process.execPath, [script], {
+        stdio: 'ignore',
+        windowsHide: true,
+      })
+      // ponytail: generous ceiling; the download is ~2 MB but mirrors vary.
+      const timer = setTimeout(() => child.kill(), 120_000)
+      child.on('exit', () => {
+        clearTimeout(timer)
+        resolve()
+      })
+      child.on('error', () => {
+        clearTimeout(timer)
+        resolve()
+      })
+    })
+    // Re-resolve: the binary should exist now.
+    getRipgrepConfig.cache.clear?.()
+    const after = getRipgrepConfig()
+    logForDebugging(
+      `[ripgrep] auto-install finished: mode=${after.mode}${after.note ? ` (${after.note})` : ''}`,
+    )
+  })()
+  return autoInstall
 }
 
 export function ripgrepCommand(): {
@@ -300,6 +351,7 @@ async function ripGrepFileCount(
   target: string,
   abortSignal: AbortSignal,
 ): Promise<number> {
+  await ensureRipgrepAvailable()
   await codesignRipgrepIfNecessary()
   const { rgPath, rgArgs, argv0 } = ripgrepCommand()
 
@@ -350,6 +402,7 @@ export async function ripGrepStream(
   abortSignal: AbortSignal,
   onLines: (lines: string[]) => void,
 ): Promise<void> {
+  await ensureRipgrepAvailable()
   await codesignRipgrepIfNecessary()
   const { rgPath, rgArgs, argv0 } = ripgrepCommand()
 
@@ -399,6 +452,7 @@ export async function ripGrep(
   target: string,
   abortSignal: AbortSignal,
 ): Promise<string[]> {
+  await ensureRipgrepAvailable()
   await codesignRipgrepIfNecessary()
 
   // Test ripgrep on first use and cache the result (fire and forget)

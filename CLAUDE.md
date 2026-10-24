@@ -278,6 +278,7 @@ Feature flags control which functionality is enabled at runtime. 代码中统一
 - **系统提示**：`src/constants/prompts.ts` 新增 `getWorkingStyleSection`（静态、缓存前）、`getFocusModeSection` / `repo_map`（`DANGEROUS_uncached`，缓存边界后）。`/focus` 通过 `src/utils/focusView.ts` 的模块级 flag 通知 prompt，避免 prompts.ts 引入 store。
 - **新增 settings**：`bashOutputMaxChars`、`taskOutputMaxChars`、`toolResultMaxChars`、`maxEffortLevel`、`autoCompactWindow`、`subagentDelegation`、`maxSubagentDepth`、`maxConcurrentSubagents`、`modelPricing`、`planModel`、`repoMap`、`postEditChecks`（schema 在 `src/utils/settings/types.ts`）。`postEditChecks` 由 `hooksConfigSnapshot.ts#withPostEditChecks` 合成 PostToolUse hook。
 - **Hook 事件**：新增 `Interrupt`（`src/utils/hooks.ts#executeInterruptHooks`，REPL `onCancel` 触发）；`emitHookStarted` 多了 `async` 位，REPL 的 spinner 行会跳过异步 hook。
+- **自我改进闭环（v2.14）**：`src/utils/harnessMining.ts` 只做计数（transcript 在 `getProjectDir(cwd)` 下的 `*.jsonl`），判断留给 `src/skills/bundled/harnessImprove.ts` 的 prompt；可改表面限定为 CLAUDE.md / `.claude/rules` / settings hooks+permissions / skills / `postEditChecks`，账本 `.claude/harness-ledger.md`。`/run` `/run-skill-generator` 在 `runSkillGenerator.ts`（flag `RUN_SKILL_GENERATOR`），`/verify` 不再限 `USER_TYPE=ant`。`initBundledSkills` 整体 try/catch，缺失的 bundled skill 不得再挂起启动。
 - **测试注意**：`bun test` 下 `feature()` 恒为 false，tree-sitter 路径要直接调用 `parseForSecurityFromAst(cmd, getParserModule().parse(cmd))`；`agentToolUtils.test.ts` 全局 mock 了 `src/Tool.js`，同目录新测试不要 import `loadAgentsDir`。`udsMessaging.test.ts` 会隔离 `CLAUDE_CODE_MESSAGING_TOKEN`（父 Claude Code 会话会导出它）。
 
 ### 穷鬼模式（Budget Mode）

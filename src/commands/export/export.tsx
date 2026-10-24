@@ -71,7 +71,7 @@ export async function call(
   const content = await exportWithReactRenderer(context);
 
   // If args are provided, write directly to file and skip dialog.
-  // .md → fenced rendered conversation; .json → raw transcript;
+  // .md → markdown with tool calls as diffs/fences; .json → raw transcript;
   // anything else → plain text.
   const filename = args.trim();
   if (filename) {
@@ -84,7 +84,7 @@ export async function call(
     const filepath = join(getCwd(), finalFilename);
     const body =
       ext === 'md'
-        ? renderMessagesToMarkdown(content, extractFirstPrompt(context.messages) || 'Conversation')
+        ? renderMessagesToMarkdown(context.messages, extractFirstPrompt(context.messages) || 'Conversation')
         : ext === 'json'
           ? renderMessagesToJson(context.messages)
           : content;

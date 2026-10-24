@@ -1,34 +1,34 @@
-import { getInitialSettings } from 'src/utils/settings/settings.js'
+import { getSettings_DEPRECATED } from 'src/utils/settings/settings.js'
 
-function positiveInteger(value: unknown): number | undefined {
-  const number = typeof value === 'string' ? Number(value) : value
-  return typeof number === 'number' &&
-    Number.isSafeInteger(number) &&
-    number > 0
-    ? number
-    : undefined
+const DEFAULT_MAX_SPAWN_DEPTH = 3
+const DEFAULT_MAX_CONCURRENT = 20
+
+function positiveInt(raw: unknown): number | undefined {
+  const n = typeof raw === 'number' ? raw : parseInt(String(raw ?? ''), 10)
+  return Number.isFinite(n) && n > 0 ? n : undefined
 }
 
+/**
+ * How many layers of subagents may exist below the main conversation.
+ * 1 = no nesting. env > settings.maxSubagentDepth > 3 (upstream default).
+ */
 export function getMaxSubagentSpawnDepth(): number {
   return (
-    positiveInteger(process.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH) ??
-    positiveInteger(getInitialSettings().maxSubagentDepth) ??
-    3
+    positiveInt(process.env.CLAUDE_CODE_MAX_SUBAGENT_SPAWN_DEPTH) ??
+    positiveInt(getSettings_DEPRECATED()?.maxSubagentDepth) ??
+    DEFAULT_MAX_SPAWN_DEPTH
   )
 }
 
 export function getMaxConcurrentSubagents(): number {
   return (
-    positiveInteger(process.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS) ??
-    positiveInteger(getInitialSettings().maxConcurrentSubagents) ??
-    20
+    positiveInt(process.env.CLAUDE_CODE_MAX_CONCURRENT_SUBAGENTS) ??
+    positiveInt(getSettings_DEPRECATED()?.maxConcurrentSubagents) ??
+    DEFAULT_MAX_CONCURRENT
   )
 }
 
-export function canSpawnAtDepth(depth = 0): boolean {
-  return (
-    Number.isSafeInteger(depth) &&
-    depth >= 0 &&
-    depth < getMaxSubagentSpawnDepth()
-  )
+/** Depth the child would run at; a spawn is allowed while this is within the max. */
+export function canSpawnAtDepth(parentDepth: number | undefined): boolean {
+  return (parentDepth ?? 0) + 1 <= getMaxSubagentSpawnDepth()
 }

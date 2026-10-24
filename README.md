@@ -14,7 +14,36 @@ A fully restored, open build of Anthropic's [Claude Code](https://docs.anthropic
 
 ![Claude Code Zanii terminal session showing a verified Zanii proof](docs/assets/zanii-proof-terminal.svg)
 
-> **v2.13.0** — App-owned ChatGPT sign-in: run `ccz auth login --chatgpt`, choose from the connected account's model catalog, and use the existing local tool permission flow. Any ChatGPT account may attempt sign-in; OpenAI determines plan permission and request access. [Setup](docs/features/chatgpt-subscription.md) · [Verification and remaining live-account checks](docs/chatgpt-subscription-verification.md)
+> **v2.14.3** — App-owned ChatGPT sign-in: run `ccz auth login --chatgpt`, choose from the connected account's model catalog, and use the existing local tool permission flow. Any ChatGPT account may attempt sign-in; OpenAI determines plan permission and request access. [Setup](docs/features/chatgpt-subscription.md) · [Verification and remaining live-account checks](docs/chatgpt-subscription-verification.md)
+> **v2.14.0** — `/harness-improve` self-improvement loop (mines your sessions for repeated failures → bounded CLAUDE.md/hooks/permissions edits with a falsifiable prediction + ledger), `/run` + `/run-skill-generator`, `/verify` for everyone.
+>
+> **v2.12.1** — Harness parity with Claude Code 2.1.274: auto mode + fork mode by default, nested subagents, `/undo` `/focus` `/skill-doctor` `/import` `/deep-research`, `librarian` agent, repo map, `modelPricing` / `planModel`, effort on every provider, gateway routing headers, Hermes-style skill learning, 15 audit fixes; 2.12.1 self-installs ripgrep when npm skips postinstall. [What changed](docs/features/harness-parity-2026-09.md) · [Research](docs/harness-gap-research-2026-09.md)
+
+## Why CCZ
+
+Claude Code's agent loop is the best in the business — but it only runs against Anthropic's cloud, it phones home, and you can't read or change it. CCZ is that same loop, rebuilt in the open, and then pushed past it: it runs on **any model** (Anthropic, Bedrock, Vertex, Foundry, or any OpenAI-compatible server — vLLM, llama.cpp, Ollama, DeepSeek, Qwen, GLM), it proves what it did, and it improves its own harness from your sessions.
+
+| | **CCZ** | Claude Code | Codex CLI | OpenCode | Aider |
+|---|---|---|---|---|---|
+| Source you can read and change | ✓ readable TypeScript, `bun run dev` (study/research license — rights remain Anthropic's) | ✗ minified | ✓ | ✓ | ✓ |
+| Runs on local / self-hosted models | ✓ auto-detects context window from `/v1/models`, adapts `reasoning_effort` to what the server accepts, retries without images on text-only models | ✗ Anthropic only | partial (OpenAI-shaped) | ✓ | ✓ |
+| Auto-approve classifier that works on *your* model | ✓ provider-agnostic auto mode, on by default | Anthropic endpoint only | Guardian (OpenAI) | permission rules | ✗ |
+| Nested subagents with depth/concurrency caps, output scanning | ✓ depth 3, cap 20, `librarian` + Explore/Plan built-ins | ✓ | ✓ | depth knob | ✗ |
+| Deterministic multi-agent workflows | ✓ Ultracode: `agent`/`pipeline`/`parallel` JS with journal replay + live monitor | ✓ | ✗ | ✗ | ✗ |
+| Self-improving harness | ✓ `/harness-improve` mines your transcripts → bounded CLAUDE.md/hooks/permissions edits with a falsifiable prediction + ledger; Hermes-style skill learning | ✗ | ✗ | ✗ | ✗ |
+| Behavioural verification | ✓ `/verify` + `/run` launch and drive the app; independent verification agent before "done"; `postEditChecks` auto lint/test | `/verify` internal-only | ✗ | ✗ | `--auto-lint/--auto-test` |
+| Tamper-evident audit trail | ✓ Zanii: every tool call → signed, hash-chained receipt, anchored on-chain, hashes only | ✗ | ✗ | ✗ | ✗ |
+| Memory | ✓ L1/L2/L3 layered memory, dream consolidation, team loadouts | auto-memory | ✗ | ✗ | ✗ |
+| Honest cost for any model | ✓ `modelPricing`, $0 + hint for unknown local models | Anthropic prices | OpenAI prices | ✓ | ✓ |
+| Architect/editor split across providers | ✓ `planModel` (plan on a big model, edit on a cheap one) | `opusplan` (Anthropic only) | ✗ | ✗ | ✓ |
+| Repo map in context | ✓ CodeGraph `repoMap` (incremental, ranked symbols) | ✗ | ✗ | ✗ | ✓ tree-sitter |
+| Loop-breaker for stuck local models | ✓ 3 identical failing calls → forced change of approach; reactive compaction on context overflow | partial | ✗ | ✗ | ✗ |
+| Remote control from your phone | ✓ self-hosted Docker panel, no cloud account | cloud only | cloud only | web UI | ✗ |
+| Editor / protocol integration | ✓ ACP (Zed, Cursor), MCP 1.30, Chrome + computer use, channels (Slack/Discord/飞书/WeChat) | MCP, IDE ext | MCP | ACP, LSP | ✗ |
+| Telemetry | none — analytics/GrowthBook/Sentry are empty stubs | opt-out | opt-out | opt-out | opt-in |
+| Model routing for a GPU box | ✓ [`model_gateway/`](model_gateway/README.md): classifier/subagent traffic → small model, main turn → big model, by request-class header | ✗ | ✗ | ✗ | ✗ |
+
+Every row links to code or docs in this repo — nothing here is roadmap. Full gap analysis against upstream 2.1.274 and the other harnesses: [`docs/harness-gap-research-2026-09.md`](docs/harness-gap-research-2026-09.md). What we deliberately don't do: Claude 5 model aliases (upstream-only pricing/capability tables) and cloud VMs — use RCS + worktrees instead.
 
 ## Proof of action
 
@@ -53,7 +82,7 @@ Receipts record *that* a tool ran and whether it succeeded — not what was in i
 | **Poor mode** — `/poor` cuts memory extraction and suggestions to slash request volume | **Channels** — push external messages into a session (Slack, Discord, 飞书, WeChat) ([docs](https://ccb.agent-aura.top/docs/features/channels)) | **Teach-me skill** — `/teach-me <topic>` walks you through this codebase Socratically |
 | **Layered memory** — L1/L2/L3 distillation pipeline, provable writes via Zanii receipts, `/memory audit|list|clear` ([docs](https://ccb.agent-aura.top/docs/features/ccz-memory-plan)) | **Wiki-lite** — cross-link detection + PageRank keyword search across Magic Docs via `WikiSearchTool` ([docs](https://ccb.agent-aura.top/docs/features/wiki-lite)) | **Impact analysis** — callers/callees/blast radius via LSP or CodeGraph ([docs](https://ccb.agent-aura.top/docs/features/impact-analysis)) |
 | **Skill promotion** — `/skill-promote` moves skills from project to user scope with semver versioning ([docs](https://ccb.agent-aura.top/docs/features/skill-promotion)) | **Team loadouts** — role-based memory filtering per agent with persistent registry ([docs](https://ccb.agent-aura.top/docs/features/team-loadouts)) | **CodeGraph** — incremental TS/JS indexer with mtime tracking + JSON persistence; `repoMap: true` injects a ranked symbol map into the prompt |
-| **Auto mode by default** — classifier reviews every tool call; nested subagents (depth 3, cap 20); `/undo`, `/focus`, `/subtask`, `/list-agents`, `/skill-doctor` ([docs](docs/features/harness-parity-2026-09.md)) | **Any-provider parity** — `/effort` → `reasoning_effort` / Gemini `thinkingBudget`, `planModel` architect/editor split, `modelPricing` for honest `/cost`, gateway hint headers + [`model_gateway/`](model_gateway/README.md) router | **Skill learning** — Hermes-style closed loop (`/skill-learning start`); `librarian` agent for library docs; `postEditChecks` auto lint/test; `/import` from Cursor / Codex / Copilot |
+| **Auto mode by default** — classifier reviews every tool call; nested subagents (depth 3, cap 20); `/undo`, `/focus`, `/subtask`, `/list-agents`, `/skill-doctor` ([docs](docs/features/harness-parity-2026-09.md)) | **Any-provider parity** — `/effort` → `reasoning_effort` / Gemini `thinkingBudget`, `planModel` architect/editor split, `modelPricing` for honest `/cost`, gateway hint headers + [`model_gateway/`](model_gateway/README.md) router | **Self-improvement** — `/harness-improve` mines your sessions and proposes bounded harness edits with predictions; `/run` `/run-skill-generator` `/verify` launch and drive the app; Hermes-style skill learning (`/skill-learning start`); `librarian` agent for library docs; `postEditChecks` auto lint/test; `/import` from Cursor / Codex / Copilot |
 
 ![Layered Memory System Architecture](docs/assets/memory-system.svg)
 
@@ -66,6 +95,8 @@ ccz        # Node.js entry
 ccz-bun    # Bun entry
 ccz update
 ```
+
+CCZ has no install scripts: the ripgrep binary for your platform is fetched on first use (or a system `rg` is used), and the Chrome native host is registered when you enable Chrome integration. If npm still prints an `allow-scripts` warning it is for the optional `@claude-code-best/mcp-chrome-bridge` dependency's own script — safe to ignore; run `npm run setup:chrome` inside the package only if you use the standalone bridge (`mcp-chrome` on port 12306).
 
 If install or update misbehaves: `npm rm -g claude-code-best && npm i -g claude-code-zanii@latest`.
 

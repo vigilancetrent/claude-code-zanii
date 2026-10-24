@@ -1,6 +1,8 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 import { type as osType, version as osVersion, release as osRelease } from 'os'
 import { env } from '../utils/env.js'
+import { isFocusModeActive } from '../utils/focusView.js'
+import { getRepoMapSection } from '../utils/repoMap.js'
 import { getIsGit } from '../utils/git.js'
 import { getCwd } from '../utils/cwd.js'
 import { getIsNonInteractiveSession } from '../bootstrap/state.js'
@@ -449,6 +451,14 @@ function getFrontendVerificationSection(
   return `For UI or frontend changes, start the dev server and use the feature in a browser before reporting the task as complete. Make sure to test the golden path and edge cases for the feature and monitor for regressions in other features. Type checking and test suites verify code correctness, not feature correctness - if you can't test the UI, say so explicitly rather than claiming success.`
 }
 
+// 13.3: /focus toggles this; read here (not from the store) so prompts.ts
+// stays free of a state import.
+function getFocusModeSection(): string | null {
+  if (!isFocusModeActive()) return null
+  return `# Focus mode
+The user has focus mode enabled. They only see your final text message in each response — not tool calls, tool results, or any text you write between tool calls. Anything you say mid-turn is not seen, so don't narrate progress between tool calls. Put everything the user needs into your final message: what you investigated, what you found, what you changed, decisions you made, and what's next. Do not assume they saw earlier output.`
+}
+
 function getModePersonaSection(): string | null {
   const mode = getCurrentMode()
   if (!mode.systemPrompt) return null
@@ -506,8 +516,18 @@ ${CYBER_RISK_INSTRUCTION}`,
     systemPromptSection('session_guidance', () =>
       getSessionSpecificGuidanceSection(enabledTools, skillToolCommands),
     ),
+    DANGEROUS_uncachedSystemPromptSection(
+      'repo_map',
+      () => (getInitialSettings().repoMap ? getRepoMapSection() : null),
+      'CodeGraph builds in the background; null must not be cached until indexed',
+    ),
     systemPromptSection('frontend_verification', () =>
       getFrontendVerificationSection(enabledTools),
+    ),
+    DANGEROUS_uncachedSystemPromptSection(
+      'focus_mode',
+      () => getFocusModeSection(),
+      '/focus toggles between turns',
     ),
     systemPromptSection('memory', () => loadMemoryPrompt()),
     systemPromptSection('ant_model_override', () =>

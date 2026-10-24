@@ -59,7 +59,7 @@ import { getTokenCountFromUsage } from 'src/utils/tokens.js'
 import { EXIT_PLAN_MODE_V2_TOOL_NAME } from '../ExitPlanModeTool/constants.js'
 import { AGENT_TOOL_NAME, LEGACY_AGENT_TOOL_NAME } from './constants.js'
 import { getMaxSubagentSpawnDepth } from './limits.js'
-import { escapeXml } from 'src/utils/xml.js'
+import { scanAgentOutput } from './scanAgentOutput.js'
 import type { AgentDefinition } from './loadAgentsDir.js'
 export type ResolvedAgentTools = {
   hasWildcard: boolean
@@ -332,10 +332,10 @@ export function finalizeAgentTool(
     }
   }
 
-  // Keep untrusted agent text from injecting harness markup into the parent.
+  // Escape harness markup / flag permission talk before the parent reads it.
   content = content.map(block =>
     block.type === 'text' && typeof block.text === 'string'
-      ? { ...block, text: escapeXml(block.text) }
+      ? { ...block, text: scanAgentOutput(block.text) }
       : block,
   )
 
