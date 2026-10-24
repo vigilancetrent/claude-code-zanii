@@ -740,6 +740,41 @@ describe('subscription transport isolation', () => {
     expect(headers.has('ChatGPT-Account-Id')).toBe(false)
   })
 
+  test('accepts a valid event stream sent without a Content-Type header', async () => {
+    const body = await eventResponse([completion()]).arrayBuffer()
+    const stream = await createChatGPTResponsesStream({
+      auth: testAuth,
+      request: buildResponsesRequest(requestParams),
+      signal: new AbortController().signal,
+      fetchOverride: (async () => {
+        const response = new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(new Uint8Array(body))
+              controller.close()
+            },
+          }),
+        )
+        expect(response.headers.get('content-type')).toBeNull()
+        return response
+      }) as unknown as typeof fetch,
+    })
+    const events = await collect(stream)
+    expect(events.at(-1)?.type).toBe('response.completed')
+  })
+
+  test('rejects an explicitly non-streaming success response', async () => {
+    const failure = await createChatGPTResponsesStream({
+      auth: testAuth,
+      request: buildResponsesRequest(requestParams),
+      signal: new AbortController().signal,
+      fetchOverride: (async () =>
+        Response.json({ ok: true })) as unknown as typeof fetch,
+    }).catch(error => error as ChatGPTResponsesError)
+    expect(failure).toBeInstanceOf(ChatGPTResponsesError)
+    expect((failure as Error).message).toContain('non-streaming')
+  })
+
   test('preserves safe status/code/request ID without leaking provider body content', async () => {
     const failure = await createChatGPTResponsesStream({
       auth: testAuth,

@@ -832,13 +832,15 @@ export async function createChatGPTResponsesStream(params: {
       requestId,
     )
   }
-  if (
-    response.headers
-      .get('content-type')
-      ?.split(';')[0]
-      ?.trim()
-      .toLowerCase() !== 'text/event-stream'
-  ) {
+  // The endpoint sometimes streams valid SSE with no Content-Type at all, so
+  // only an explicit non-SSE type is rejected; a non-SSE body without one still
+  // fails in the parser ("ended without response.completed").
+  const contentType = response.headers
+    .get('content-type')
+    ?.split(';')[0]
+    ?.trim()
+    .toLowerCase()
+  if (contentType && contentType !== 'text/event-stream') {
     await response.body?.cancel()
     throw new ChatGPTResponsesError('ChatGPT returned a non-streaming response')
   }
