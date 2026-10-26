@@ -603,6 +603,9 @@ export async function* adaptResponsesStreamToAnthropic(
   let contentIndex = -1
   let openBlock: 'text' | 'thinking' | undefined
   let receivedText = false
+  // The subscription endpoint sends response.completed with an empty output
+  // array; the items only arrive as response.output_item.done events.
+  const doneItems: unknown[] = []
 
   for await (const event of stream) {
     if (!started) {
@@ -683,6 +686,16 @@ export async function* adaptResponsesStreamToAnthropic(
       )
     }
 
+    if (event.type === 'response.output_item.done') {
+      if (doneItems.length >= MAX_OUTPUT_ITEMS) {
+        throw new ChatGPTResponsesError(
+          'ChatGPT returned invalid response output',
+        )
+      }
+      doneItems.push(event.item)
+      continue
+    }
+
     if (event.type === 'response.completed') {
       const response = asRecord(event.response)
       if (response?.status !== 'completed' || !safeIdentifier(response.id)) {
@@ -690,7 +703,11 @@ export async function* adaptResponsesStreamToAnthropic(
           'ChatGPT returned an invalid completion event',
         )
       }
-      const output = validateOutputItems(response.output)
+      const output = validateOutputItems(
+        Array.isArray(response.output) && response.output.length > 0
+          ? response.output
+          : doneItems,
+      )
       if (openBlock) {
         yield { type: 'content_block_stop', index: contentIndex }
         openBlock = undefined

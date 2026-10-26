@@ -698,6 +698,33 @@ describe('Responses completion is the tool execution commit point', () => {
       },
     })
   })
+
+  test('uses output_item.done items when the completed output is empty', async () => {
+    let state: { output: unknown[] } | undefined
+    const result = await collect(
+      adaptResponsesStreamToAnthropic(
+        events([
+          ...nativeOutput.map(item => ({
+            type: 'response.output_item.done',
+            item,
+          })),
+          completion([]),
+        ]),
+        'test-model',
+        { accountKey: 'test-account', onCompleted: s => (state = s) },
+      ),
+    )
+    const tools = result.filter(
+      event =>
+        event.type === 'content_block_start' &&
+        event.content_block.type === 'tool_use',
+    )
+    expect(tools).toHaveLength(1)
+    expect(result.find(event => event.type === 'message_delta')).toMatchObject({
+      delta: { stop_reason: 'tool_use' },
+    })
+    expect(state?.output).toEqual(nativeOutput)
+  })
 })
 
 describe('subscription transport isolation', () => {
