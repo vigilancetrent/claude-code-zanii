@@ -578,9 +578,13 @@ describe('normalizeMessagesForAPI', () => {
         item => item.role === 'assistant' && item.type !== 'message',
       ),
     ).toBe(false)
-    expect(() =>
-      messagesWithResponsesState(reloaded.slice(-1), asSystemPrompt([])),
-    ).toThrow(/partial or edited native response/)
+    const partial = messagesWithResponsesState(
+      reloaded.slice(-1),
+      asSystemPrompt([]),
+    )
+    expect(JSON.stringify(partial)).not.toContain('chatgptResponses')
+    expect(JSON.stringify(partial)).not.toContain('opaque-test-state')
+    expect(JSON.stringify(partial)).toContain('call_native')
     const normalized = normalizeMessagesForAPI([
       ...reloaded,
       createUserMessage({

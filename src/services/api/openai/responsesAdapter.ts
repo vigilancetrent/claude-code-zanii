@@ -104,9 +104,11 @@ export function messagesWithResponsesState(
         item => calls.get(String(item.call_id))?.name !== functionName(item),
       )
     ) {
-      throw new ChatGPTResponsesError(
-        'ChatGPT history contains a partial or edited native response. Start a new conversation instead of replaying removed content.',
-      )
+      // Interrupted or edited turn: drop the native items so removed content is
+      // never replayed, and fall back to the visible blocks instead of failing
+      // every later request in the session.
+      responseStates.delete(id)
+      continue
     }
     responseStates.set(id, {
       ...state,
@@ -123,10 +125,11 @@ export function messagesWithResponsesState(
   for (const message of messages) {
     const converted = anthropicMessagesToOpenAI([message], asSystemPrompt([]))
     const state =
-      message.type === 'assistant'
-        ? (responseStates.get(message.message.id ?? '') ??
-          message.message.chatgptResponses)
-        : undefined
+      message.type !== 'assistant'
+        ? undefined
+        : message.message.id
+          ? responseStates.get(message.message.id)
+          : message.message.chatgptResponses
     result.push(
       ...converted.map(item =>
         item.role === 'assistant' && state
