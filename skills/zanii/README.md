@@ -6,16 +6,17 @@ agents / proof-of-action / the `@zanii/*` or `zanii` SDKs, the model gets the ri
 mental model, real API signatures, and the rules it must follow — injected
 automatically, so you don't re-explain Zanii every session.
 
-Progressive disclosure: `SKILL.md` (short — always considered) points to
+Progressive disclosure: `SKILL.md` (short, always considered) points to
 `reference/*.md` (loaded only when a task needs the depth).
 
 ```
 skills/zanii/
-  SKILL.md                 # mental model, workflow, the rules
-  reference/typescript.md  # @zanii/sdk · core · runtime · mcp-proxy
-  reference/python.md      # zanii · zanii.core · zanii.runtime · zanii.mcp_proxy
-  reference/api.md         # the ledger HTTP API
+  SKILL.md                 # mental model, workflow, what-to-use-when table, the rules
+  reference/typescript.md  # @zanii/sdk (journals, paged export, errors) · core · runtime · mcp-proxy
+  reference/python.md      # zanii · zanii.aio · zanii.errors · zanii.sql_journal · runtime · mcp_proxy
+  reference/api.md         # the ledger HTTP API (incl. revocations, paged export, read policies)
   reference/patterns.md    # patterns + gotchas models get wrong
+  reference/ecosystem.md   # optional packages; Certify / Blackbox / Underwrite and this release
 ```
 
 ## Install it
@@ -38,12 +39,15 @@ context (system prompt / tool docs) and load `reference/*.md` on demand.
 
 ## Keep it accurate
 
-The skill is written for the **published SDKs** (`@zanii/{core,sdk}` `v0.4.0`, `zanii` `0.24.0`). If the SDK
-API or the HTTP API changes, update `SKILL.md` and the matching `reference/*.md` in
-the same change — the whole value of a skill is that it's *correct*.
+The skill is written for the **published SDKs** released 2026-10-29: `@zanii/sdk` 0.6.0 or later
+(with `@zanii/core` ^0.5.6, `@zanii/runtime` 0.4.0, `@zanii/cli` 0.3.0) and `zanii` 0.27.0 or later
+— except the **Regulator Hub** modules, which need `zanii` **0.28.0** (same 2026-10-29 date).
+If the SDK API or the HTTP API changes, update `SKILL.md` and the matching `reference/*.md` in
+the same change: the whole value of a skill is that it's *correct*. Run each new snippet against a
+local log (the reference server or `services/log-server`), never the production ledger.
 
 ## Distribute it
 
 - Ship it alongside the SDK docs, or publish it to a skills marketplace / plugin.
-- Because it's self-contained Markdown, users need nothing installed to benefit —
+- Because it's self-contained Markdown, users need nothing installed to benefit:
   their coding agent just gets better at Zanii.

@@ -1,4 +1,4 @@
-# Zanii — patterns & gotchas (what models get wrong)
+# Zanii: patterns & gotchas (what models get wrong)
 
 ## Common mistakes to avoid
 - **Sending raw payloads to the ledger.** You don't — you pass the payload to `record`/`wrapTool`
@@ -14,7 +14,18 @@
   `duplicate`. Don't add `Idempotency-Key` headers or dedupe logic.
 - **Trusting the server response.** The whole point is zero-trust. Show verification via
   `verifyAuditBundle` / `fetchAndVerifyProof`, not "the API said ok".
-- **Forgetting `flush()`.** `record()` queues; call `flush()` (or let the batch timer fire) to ship.
+- **Forgetting `flush()`.** `record()` queues; call `flush()` (or let the batch timer fire) to ship. At the
+  end of a scope use `await using` / `with ZaniiAgent(...)`, or `close({ flush: true })` / `close(flush=True)`:
+  a bare `close()` does NOT flush.
+- **Reading `proof.error`.** `fetchAndVerifyProof` returns `{ ok, checks, receipt?, sth?, payload? }`; there is
+  no `error` field. Report the failed `checks[].label`s.
+- **`createRevocation(cert, key)`.** The signature is `createRevocation(cert, ts, issuerPrivateKey)` /
+  `create_revocation(cert, ts, issuer_private_key)`; creating it only signs a file. Send it with
+  `submitRevocation` / `submit_revocation` (or `zanii revoke --submit`), or the log never learns.
+- **Matching error messages.** Branch on `e.code` / `isZaniiError(e, code)` / `is_zanii_error(e, code)`.
+  Messages are kept for old code, not a contract.
+- **Treating `accepted` as done.** A delivery `accepted` means the log stored the receipt: not anchored,
+  not settled, and not proof the business action succeeded.
 - **Hardcoding keys.** Ed25519 private keys and `zk_live_`/`zk_admin_` tokens are secrets — env or a
   file (mode 600), shown once, never committed.
 - **Non-UTC timestamps.** Use ISO-8601 with `Z`. `exp` on a cert is required.
@@ -127,6 +138,84 @@
   `verifyCV` even warns when the list exceeds `summary.receipts`. A CV proves its entries are real, not
   that nothing was left out. And `verifyCV` is offline/structural — to verify the underlying history,
   follow `summary.audit_bundle` (`verifyAuditBundle`) or `resolveAndVerify`.
+
+## 0.6.0 / 0.27.0 patterns
+
+**Scope exit.** TS `await using agent = new ZaniiAgent(...)` runs `close({ flush: true })` at block end and
+needs `Symbol.asyncDispose` (Node 24+); on older runtimes use `try { ... } finally { await agent.close({ flush: true }) }`.
+Python `with ZaniiAgent(...) as agent:` (or `async with AsyncZaniiAgent(...)`) flushes and closes and never
+masks the block's exception. A failed final flush leaves receipts queued, and journaled if a journal is set.
+
+**Never lose receipts at exit.** Memory only: add `flushOnExit: true` (TS, one attempt at `beforeExit`) or
+`flush_on_exit=True` + `flush_interval=` (Python). Those only reduce loss on a clean exit; for crashes and
+redeploys configure a journal and call `recoverPendingReceipts()` / `recover_pending_receipts()` at startup.
+
+**SQL journal ownership and takeover.** One owner per (agent DID, log URL). `open` claims an owner row
+(`ON CONFLICT DO NOTHING`); every write is fenced on that owner token, so a second process gets
+`JOURNAL_OWNED` and a fenced-out writer stops (`JOURNAL_STOPPED`) instead of forking the chain. A clean
+`journal.close()` releases ownership; after a crash the row stays, and an operator reopens with
+`takeover: true` / `takeover=True` only once the old process is confirmed dead (two live writers fork
+evidence). Several agents can share one database: ownership is per agent. Recovery replays the exact
+signed receipts and never re-runs a business action. Keep the 32-byte key in a secrets manager.
+
+**Custom journals: run the conformance kit** before relying on one:
+```ts
+import { DatabaseSync } from 'node:sqlite';
+import { runJournalConformance } from '@zanii/sdk/journal-testkit';
+import { SqlReceiptJournal, sqlJournalSchema } from '@zanii/sdk/sql-journal';
+
+const db = new DatabaseSync(':memory:');
+const tables = new Map<string, string>();
+const table = (slot: string) => {                 // a fresh table set per scenario
+  if (!tables.has(slot)) {
+    const name = `conf_${tables.size}`;
+    for (const statement of sqlJournalSchema('sqlite', name)) db.exec(statement);
+    tables.set(slot, name);
+  }
+  return tables.get(slot)!;
+};
+const result = await runJournalConformance((c) => SqlReceiptJournal.open({
+  query: (text, params) => db.prepare(text).all(...(params as never[])) as Array<Record<string, unknown>>,
+  dialect: 'sqlite', table: table(c.slot), agentId: c.agentId, serverUrl: c.serverUrl, key: new Uint8Array(32).fill(1),
+}));
+console.log(result.passed, result.skipped);      // throws JOURNAL_CONFORMANCE_FAILED naming the broken guarantee
+```
+```python
+import sqlite3
+from zanii.journal_testkit import run_journal_conformance
+from zanii.sql_journal import SqlReceiptJournal, sql_journal_schema
+
+db = sqlite3.connect(":memory:", check_same_thread=False)
+tables = {}
+
+def table(ctx):                                  # a fresh table set per scenario
+    if ctx["slot"] not in tables:
+        tables[ctx["slot"]] = name = f"conf_{len(tables)}"
+        for statement in sql_journal_schema("sqlite", name):
+            db.execute(statement)
+        db.commit()
+    return tables[ctx["slot"]]
+
+result = run_journal_conformance(lambda ctx: SqlReceiptJournal(
+    db, agent_id=ctx["agent_id"], server_url=ctx["server_url"], key=bytes(32), table=table(ctx)))
+print(result["passed"], result["skipped"])       # raises AssertionError (JOURNAL_CONFORMANCE_FAILED) naming the guarantee
+```
+Pass a `corrupt` hook to also check fail-closed handling of damaged evidence (skipped otherwise).
+
+**Paged verification.** For exports too big for one response, `fetchAndVerifyBundlePaged` /
+`fetch_and_verify_bundle_paged` keeps memory at one page and fails unless it reaches the advertised
+total on one pinned tree head. Process data in `onPage` / `on_page` (each page is already verified),
+but treat the run as proven only when the final `ok` is true. It covers chain, inclusion, anchors and
+revocations; settlement, witness and per-proof details still need `fetchAndVerifyBundle`.
+
+**Retries and callbacks.** Bound automatic retries with `retry.maxAttempts` and alert from `onFailed`;
+after exhaustion receipts stay queued until an explicit `flush()`. Callbacks get hashes, statuses and
+counts: log those, never payloads, nonces or keys. A throwing callback is ignored, so it cannot break delivery.
+
+**Revoking a leaked agent key.** Revoke every delegation cert issued to that agent DID
+(`createRevocation` + `submitRevocation`, owner key), confirm with `checkRevocation`, then mint a new agent
+keypair with a fresh cert. Optionally record continuity with `@zanii/succession` (`reason: 'compromise'`
+plus `compromised_at`). The status read only covers what that log reports now.
 
 ## Choosing the layer
 - Just need to **verify** someone else's proof/bundle → `@zanii/core` / `zanii.core`, no server, no key.

@@ -1,4 +1,4 @@
-# Zanii — HTTP API reference
+# Zanii: HTTP API reference
 
 Base URL `https://ledger.zanii.agency`. JSON in/out. Auth via `Authorization: Bearer <token>`.
 Prefer the SDKs for anything that builds/verifies proofs; use raw HTTP for account/webhook/dashboard UIs.
@@ -6,7 +6,11 @@ Prefer the SDKs for anything that builds/verifies proofs; use raw HTTP for accou
 ## Auth model
 - `zk_live_…` (ingest key) → writing receipts.
 - `zk_admin_…` (admin key) → managing your org: keys, usage, webhooks.
-- No key → all reads, proofs, public pages, stats.
+- No key → all reads, proofs, public pages, stats on `ledger.zanii.agency` (read policy `public`, the default).
+- Self-hosted read policies (`ZANII_READ_POLICY`): `restricted` needs a `zk_live_` key for content reads
+  (proofs, export, revocations, agents) but leaves `/v1/sth` and `/v1/consistency` open for witnesses;
+  `private` needs a key for every read. Web pages answer 404 under both. Pass `apiKey` / `api_key` to
+  the SDK read helpers. On restricted/private deployments account admin reads need the account admin key.
 
 ## Accounts (self-serve)
 - `POST /v1/account/signup` `{name}` → `{org_id, admin_key}` (**admin_key shown once**).
@@ -29,7 +33,9 @@ Prefer the SDKs for anything that builds/verifies proofs; use raw HTTP for accou
   Verifies **authority per signer** (sig + owner-rooted delegation + target-in-scope + `prev` == chain
   head + not revoked), then `threshold`, then **distinct owners** (default on — one owner's N agents
   cannot fake an M-of-N). Build with `@zanii/swarm` `buildSwarmReceipt`.
-- `POST /v1/revocations` `{revocation}` → `{status,cert_hash,index,sth}`.
+- `POST /v1/revocations` `{revocation}` → `{status:accepted|duplicate,cert_hash,index,sth}`; `422` if the record is
+  not signed by the cert's issuer. SDK: `submitRevocation` / `submit_revocation` (checks the signature first);
+  CLI: `zanii revoke ... --submit`.
 - `POST /v1/anchor` (**admin** key) → forces an on-chain anchor of the current STH.
 
 ## Reading & proofs (public)
@@ -45,8 +51,15 @@ Prefer the SDKs for anything that builds/verifies proofs; use raw HTTP for accou
   tag match; a receipt bearing a different tag is flagged, never silently shown).
   The index is **tag-agnostic** — it also serves `@zanii/custody` item tags and `@zanii/health`
   *per-episode* tags (see patterns.md: episode tags are deliberately **unlinkable**).
-- `GET /v1/export/{did}` → the agent's full **audit bundle** (verify with `verifyAuditBundle`).
-- `GET /v1/anchors` · `GET /v1/revocations` · `GET /v1/stats` (`{receipts,agents,anchors,last_anchor_ts,last_receipt_ts}`) · `GET /v1/stream` (SSE live feed).
+- `GET /v1/export/{did}` → the agent's full **audit bundle**, unchanged version 1 (verify with `verifyAuditBundle`).
+  **Paged (additive):** `GET /v1/export/{did}?limit=1..1000&offset=0&size=<tree size>` → a
+  `zanii-audit-bundle-page`: `{v,bundle_type,log_id,agent_id,sth,page:{offset,limit,total,next_offset},receipts,revocations,anchors}`,
+  every page pinned to tree size `size` (default: current), so later writes never appear. A page alone
+  fails `verifyAuditBundle` by design. `400` for a bad `limit`/`offset`/`size`. Use
+  `fetchAndVerifyBundlePaged` / `fetch_and_verify_bundle_paged`; older servers ignore the parameters
+  and return the full bundle, which the SDK verifies as one page.
+- `GET /v1/revocations` → `{revocations:[{cert_hash,index,ts}]}` (SDK `listRevocations` / `checkRevocation`).
+- `GET /v1/anchors` · `GET /v1/stats` (`{receipts,agents,anchors,last_anchor_ts,last_receipt_ts}`) · `GET /v1/stream` (SSE live feed).
 
 ## Public pages / embeds (no key)
 `/verify/{hash}` (proof page + QR), `/agent/{did}` (shareable profile), `/badge/{did}.svg`,
@@ -59,3 +72,7 @@ Prefer the SDKs for anything that builds/verifies proofs; use raw HTTP for accou
 
 ## Errors
 `{error}` with `400` (validation), `401` (bad/missing key), `403` (scope), `404`, `422` (verification failed), `429` (rate limit), `503` (feature off).
+`POST /v1/receipts` answers per receipt (`accepted|duplicate|rejected`); a batch where every receipt is
+rejected can come back as `422` with the same `results` body. The SDKs surface non-success answers as
+`ZaniiHttpError` (`code: HTTP_ERROR`, `status`, `serverCode` / `server_code` when the body carries an
+UPPER_SNAKE code) and refuse success-looking bodies that do not answer the request (`INVALID_RESPONSE`).

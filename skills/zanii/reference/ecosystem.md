@@ -1,12 +1,21 @@
-# Zanii — optional ecosystem packages
+# Zanii: optional ecosystem packages
 
-Install only what a task needs. TS on npm; Python modules ship inside `zanii` (0.24.0).
-All packages below are **published** — exact per-package versions live in `docs/PUBLISHING.md` (the registry). 60 optional npm packages: the five ecosystem
+Install only what a task needs. TS on npm; Python modules ship inside `zanii` (0.27.0 or later;
+the Regulator Hub modules at the end of this file need **0.28.0**): every package
+with a Python use, byte-identical to TypeScript wherever it signs or hashes (`react`, the vitest matchers,
+the signerd daemon itself and SLH-DSA stay TypeScript-only).
+All packages below are **published**; the registry has the exact per-package versions. The 2026-10-29
+release moved `@zanii/sdk` 0.6.0, `runtime` 0.4.0, `credentials` 0.2.0, `compliance` 0.3.0, `redact` 0.2.0,
+`react` 0.2.0, `embed` 0.2.0, `provenance` 0.2.0, `signerd` 0.2.0, `conformance` 0.3.0, `mcp-proxy` 0.2.5,
+`policy` 0.2.0, `gateway` 0.1.4, `langchain` 0.1.2, `openai-agents` 0.2.0, `ai` 0.1.2, `cli` 0.3.0 and PyPI
+`zanii` 0.27.0; unchanged optional packages need no upgrade. Under 0.x semver a caret range never crosses
+a minor (`^0.1.2` does not match 0.2.0), so moving to these is a deliberate bump; `mcp-proxy` ^0.2.4 and
+`gateway` ^0.1.3 do pick up their patch releases, which move to `@zanii/sdk` ^0.6.0. 71 optional npm packages: the five ecosystem
 (`ai,webhooks,testing,monitor,react`), the ten standalone, four framework/privacy
 (`langchain,openai-agents,retention,redact`), three standards-landing
 (`a2a-directory,x402,erc8004`), four UAE-compliance
 (`consent,admissibility,fta,walls`), `memory` (provable hash-chained agent memory), and
-three trust-boundary (`kya,attest,swarm`), `subject` (per-subject auditability), `custody-verdicts` (the one verifier: five custody verdict rows), three
+three trust-boundary (`kya,attest,swarm`), `subject` (per-subject auditability), `custody-verdicts` (the one verifier: eight custody verdict rows), three
 real-world provenance (`provenance,custody,decisions`), `sentinel` (runtime behavioral monitoring), two
 institutional-trust (`credentials,gov`), `health` (medical audit trails), `cv` (AgentCV), three
 agent-economy (`escrow` conditional payments, `insurance` machine-verifiable underwriting,
@@ -14,7 +23,7 @@ agent-economy (`escrow` conditional payments, `insurance` machine-verifiable und
 continuity, `sla` receipt-computed service agreements, `constitution` rules as signed policy,
 `pq` post-quantum hybrid signing), three custody/interop/legal (`broker` receipt-or-nothing
 credential broker, `vc` W3C VC 2.0 bridge, `kyb` owner-to-legal-entity binding), and
-`chain-bridge` (the Zanii L1 ↔ ledger identity bridge), and seven data-custody/sovereignty (`data-custody`, `residency`, `subprocessor`, `minimization`, `age-assurance`, `train`, `identity-bridge`).
+`chain-bridge` (the Zanii L1 ↔ ledger identity bridge), and seven data-custody/sovereignty (`data-custody`, `residency`, `subprocessor`, `minimization`, `age-assurance`, `train`, `identity-bridge`), plus `guard` (inline attack guard), `signerd` (key-holding daemon), `conformance` (protocol vectors), `zk` (privacy primitives) and nine industry packages (`robotics`, `energy`, `trading`, `elections`, `education`, `legal-ai`, `regulator`, `carbon`, `agent-bank`).
 
 ## `@zanii/ai` — one-line framework tool instrumentation (npm)
 Wrap a Vercel-AI-SDK-style tools map (or any tool with `execute`) so every call is receipted.
@@ -22,7 +31,8 @@ Wrap a Vercel-AI-SDK-style tools map (or any tool with `execute`) so every call 
 import { withZanii } from '@zanii/ai';        // peerDep @zanii/sdk
 const tools = withZanii(myTools, { agent });  // every tool.execute → a receipt
 ```
-Python: no separate package — use the SDK's `zanii.wrap_tool('email.send', fn)` on the callable.
+Python: `zanii.ai` — `with_zanii({"crm.lookup": lookup}, agent)` wraps callables or objects with
+`execute`/`run`/`invoke`; also model calls, streams, prompt lineage, cost, MCP client calls.
 
 ## `@zanii/webhooks` / `zanii.webhooks` — receive + verify webhooks
 ```ts
@@ -37,22 +47,30 @@ res = receive(raw_body, request.headers.get("X-Zanii-Signature"))   # {"ok","sta
 ```
 Always pass the **raw** body (the exact bytes that were signed). Get `secret` from `POST /v1/account/webhooks`.
 
-## `@zanii/testing` / `zanii.testing` — test agents offline
+## `@zanii/testing` / `zanii.testing`: test agents offline
 ```ts
+import { ZaniiAgent } from '@zanii/sdk';
 import { createTestLedger, makeIdentity, makeCert } from '@zanii/testing';
 const ledger = createTestLedger();
-const zanii = new ZaniiAgent({ /* … */, fetchImpl: ledger.fetch });
+const owner = makeIdentity(), agent = makeIdentity();
+const zanii = new ZaniiAgent({ serverUrl: 'http://test', agentDid: agent.did, agentPrivateKey: agent.privateKey,
+  delegation: [makeCert(owner, agent, ['crm.*'])], fetchImpl: ledger.fetch });
 await zanii.record({ target: 'crm.lookup', payload: {} }); await zanii.flush();
 expect(ledger.hasRecorded('crm.lookup')).toBe(true);
 ```
 ```python
+from zanii import ZaniiAgent
 from zanii.testing import fake_ledger, make_identity, make_cert
+owner, agent = make_identity(), make_identity()
 with fake_ledger() as ledger:              # monkeypatches the SDK's HTTP to an in-memory ledger
-    z = ZaniiAgent(server_url="http://test", agent_did=agent.did, agent_private_key=agent.private_key, delegation=[cert])
+    z = ZaniiAgent(server_url="http://test", agent_did=agent.did, agent_private_key=agent.private_key,
+                   delegation=[make_cert(owner, agent, ["crm.*"])])
     z.record(target="crm.lookup", payload={}); z.flush()
     assert ledger.has_recorded("crm.lookup") and ledger.verify_all()
 ```
-Real Merkle proofs — `fetchAndVerifyProof` / `verify_audit_bundle` verify against it.
+Real Merkle proofs: `fetchAndVerifyProof` / `verify_audit_bundle` verify against it. The fake ledgers
+cover receipts, proofs, heads and consistency; for revocations and paged exports test against a log
+server you run locally, never production.
 
 ## `@zanii/monitor` / `zanii.monitor` — independent append-only + anchor watchdog
 ```sh
@@ -77,25 +95,29 @@ import { VerifiedBadge, ProofViewer, AgentProfile, LedgerTicker } from '@zanii/r
 
 ## The ten standalone packages (published — npm · Python parity)
 
-TS source in `packages/<name>`; Python parity ships inside `zanii` (9 of 10 — `gateway` is
-TS-only). Reach for one only when the task fits.
+TS source in `packages/<name>`; Python parity ships inside `zanii` (all 10). Reach for one only when the task fits.
 
-- **`@zanii/cli`** / **`zanii.cli`** (the `zanii` console script) — `keygen`, `did`, `delegate`,
-  `revoke`, `verify`, `bundle`, `export`, `stats`, `agent`. `--json` on any command; `verify`/`bundle`
+- **`@zanii/cli`** / **`zanii.cli`** (the `zanii` console script): `keygen`, `did`, `delegate`,
+  `revoke`, `verify`, `bundle`, `export`, `stats`, `agent`. Since 0.3.0: `zanii revoke ... --submit`
+  (or `--revocation rev.json --submit`) sends the signed revocation to the log (key from `--api-key` or
+  `ZANII_API_KEY`), and `zanii revocations [cert.json|<cert_hash>]` lists or checks them; `revoke`
+  without `--submit` still only writes the file. `--json` on any command; `verify`/`bundle`
   exit non-zero on failure (drops into CI). TS also `import { run } from '@zanii/cli'`. Since v0.2.0:
   **`zanii audit <tag>`** — a data subject's slice through `@zanii/custody-verdicts`, writing a
   self-contained evidence bundle; `--bundle <file>` re-runs the identical verdicts **offline**
-  (zero network, enforced) so an auditor reaches the same five rows as the subject page.
-- **`@zanii/gateway`** (TS-only) — transparent HTTP proxy; receipts every forwarded call as `http.<method>.<path>`.
+  (zero network, enforced) so an auditor reaches the same rows as the subject page.
+- **`@zanii/gateway`** / **`zanii.gateway`** — transparent HTTP proxy; receipts every forwarded call as `http.<method>.<path>`.
   `createZaniiHandler({ upstream, agent })` (fetch/edge), `createZaniiGateway` (Node), `zanii-gateway` CLI.
-  *Python:* wrap your HTTP client function with the SDK's `wrap_tool`.
+  *Python:* a WSGI app, `python -m zanii.gateway --upstream … --port 4800` (binds 127.0.0.1 by default).
 - **`@zanii/compliance`** / **`zanii.compliance`** — audit bundle → auditor report.
   `buildComplianceReport(bundle, { controls })` / `build_compliance_report(bundle, controls=…)`
   (offline verify + action breakdown + anchoring coverage + flags), `renderComplianceMarkdown` / `render_compliance_markdown`.
 - **`@zanii/kms`** / **`zanii.kms`** — seal keys at rest (scrypt + AES-256-GCM). `sealIdentity`/`seal_identity`,
   `openIdentity`/`open_identity` → `{ did, privateKey }` for a new agent. Sealed-key format is cross-language compatible.
+  HSM/KMS: `RemoteSigner` + `checkedSigner` / `checked_signer` plug into the SDK's `signer` option.
 - **`@zanii/witness`** / **`zanii.witness`** — independent co-signer. `createWitness(keypair).cosign(sth, { consistencyProof })`
   verifies append-only then counter-signs; `verifyCosignature`/`verify_cosignature`. (Contrast `@zanii/monitor`, which only watches.)
+  Witness key in an HSM: `createRemoteWitness(signer)` / `create_remote_witness` — same checks, one checkpoint at a time.
 - **`@zanii/policy`** / **`zanii.policy`** — pre-action `allow`/`deny`/`require_approval` on payload conditions.
   `createPolicyEngine({ rules, default }).evaluate(...)` / `create_policy_engine(...)`. Ops: `eq ne lt lte gt gte in nin`; fixed-window `rateLimit`.
 - **`@zanii/otel`** / **`zanii.otel`** (`zanii[otel]`) — `withTracing(agent)` / `with_tracing(agent)` makes every
@@ -103,7 +125,8 @@ TS-only). Reach for one only when the task fits.
 - **`@zanii/payments`** / **`zanii.payments`** — correct money: `parseMoney('49.99','USD')` / `parse_money(...)` → integer
   minor units, never a float. `buildPayment` / `build_payment` → validated payload for `recordPayment`/`record_payment`. `registerCurrency` for new codes.
 - **`@zanii/embed`** / **`zanii.embed`** — framework-free "Verified by Zanii" badges (escaped SVG + snippet).
-  `agentBadge`/`agent_badge`, `badgeSVG`/`badge_svg`, `proofBadgeSVG`/`proof_badge_svg`, `embedSnippet`/`embed_snippet`.
+  `agentBadge`/`agent_badge`, `badgeSVG`/`badge_svg`, `proofBadgeSVG`/`proof_badge_svg`, `embedSnippet`/`embed_snippet`;
+  0.2.0: `claimBadgeSVG(report, claim)` / `claim_badge_svg` renders one proof-details state (scoped badge).
 - **`@zanii/connectors`** / **`zanii.connectors`** — one-call proof recording for LLM tool calls.
   `wrapToolbox`/`wrap_toolbox`, `runToolCalls`/`run_tool_calls` (OpenAI + Anthropic shapes), `normalizeToolCall`/`normalize_tool_call`.
 
@@ -115,7 +138,8 @@ Integrate via each framework's **own hook** (not per-tool wrapping) — attach o
 
 - **`@zanii/langchain`** / **`zanii.langchain`** (`zanii[langchain]`) — receipt every tool call in a
   LangChain **or LangGraph** run via one callback handler. `new ZaniiCallbackHandler({ agent })` /
-  `zanii_callbacks(agent)` → pass in `config.callbacks`. TS also `withZaniiConfig(config, agent)`.
+  `zanii_callbacks(agent)` → pass in `config.callbacks`. `withZaniiConfig(config, agent)` /
+  `with_zanii_config(config, agent)` adds it and keeps existing callbacks.
 - **`@zanii/openai-agents`** / **`zanii.openai_agents`** (`zanii[openai-agents]`) — OpenAI Agents SDK
   lifecycle hooks. `new ZaniiRunHooks(agent)` → `Runner.run(agent, input, { hooks })` / `hooks=`. Records tool + output.
 - **`zanii.crewai`** (`zanii[crewai]`, Python-only) — `instrument_crew(crew, agent)` attaches a receipting
@@ -131,7 +155,7 @@ Integrate via each framework's **own hook** (not per-tool wrapping) — attach o
 
 ---
 
-## Standards-landing packages (published — npm · zanii 0.24.0 Python)
+## Standards-landing packages (published — npm · zanii Python)
 
 For the A2A / agentic-commerce era. TS + Python parity.
 
@@ -150,7 +174,7 @@ For the A2A / agentic-commerce era. TS + Python parity.
 
 ---
 
-## UAE-compliance packages (published — npm · zanii 0.24.0 Python)
+## UAE-compliance packages (published — npm · zanii Python)
 
 Regional law as product. TS + Python parity.
 
@@ -171,7 +195,7 @@ Regional law as product. TS + Python parity.
 
 ---
 
-## Provable agent memory (published — npm · zanii 0.24.0 Python)
+## Provable agent memory (published — npm · zanii Python)
 
 - **`@zanii/memory`** / **`zanii.memory`** — hash-chained agent memory: a `memory.write` receipt records what an
   agent remembered and when, with a **salted content commitment** (raw memory never leaves your system) and a
@@ -185,7 +209,7 @@ Regional law as product. TS + Python parity.
 
 ---
 
-## Trust-boundary packages (published — npm · zanii 0.24.0 Python)
+## Trust-boundary packages (published — npm · zanii Python)
 
 Close the accountability gaps: who you transact with, which code ran, and N-party teams.
 
@@ -210,7 +234,7 @@ Close the accountability gaps: who you transact with, which code ran, and N-part
 
 ---
 
-## Per-subject auditability (published — npm · zanii 0.24.0 Python)
+## Per-subject auditability (published — npm · zanii Python)
 
 - **`@zanii/subject`** / **`zanii.subject`** — the **end user's own slice** of the ledger: a platform's
   millions of end users each hold their own `did:key` and independently verify what agents did on *their*
@@ -224,19 +248,23 @@ Close the accountability gaps: who you transact with, which code ran, and N-part
   Same subject ⇒ **different tag per platform** (no cross-platform linkage); a tag is not reversible to an
   identity. Honest limit: the slice is only as complete as the platform's stamping. Dep `@zanii/core`.
 
-- **`@zanii/custody-verdicts`** (TS, npm) — **one verifier, two surfaces.** `await computeVerdicts(history,
-  evidence?, options?)` computes the five custody verdict rows — `purpose`, `self_sovereign`, `human_read`,
-  `trained_on`, `copy_kept` — from an offline-verified `SubjectHistory`; the subject page and `zanii audit`
+- **`@zanii/custody-verdicts`** / **`zanii.custody_verdicts`** — **one verifier, two surfaces.** `await computeVerdicts(history,
+  evidence?, options?)` computes the eight custody verdict rows — `purpose`, `self_sovereign`, `human_read`,
+  `trained_on`, `copy_kept`, `residency`, `subprocessor`, `minimization` — from an offline-verified `SubjectHistory`; the subject page and `zanii audit`
   call this same function (two implementations drift, and the drift always favours the vendor). Verdicts are
   **computed, never stored**, in four states — `proven` / `not covered` / `failed` / `cannot determine` —
   where a missing proof is never a clean result and a bad receipt is a red, not a grey. Rows 3–5 consume an
   optional evidence bag with real offline checks (`@zanii/train` absence proofs, `@zanii/retention` shred
   receipts, signed coverage attestations via `@zanii/attest`); never throws — malformed input yields honest
-  `cannot determine` rows with reasons. Deps `@zanii/{data-custody,train,retention,attest}`.
+  `cannot determine` rows with reasons. Since v0.2.0 the coverage attestation must bind its **signing
+  key** to the attested image (`attestation.nonce === signer`, so a published attestation cannot be
+  lifted and re-signed), and `coverage` also accepts an ordered **chain** of windows for deployments
+  that restart or redeploy — every window authenticates on its own and they must abut, because a gap
+  in coverage is not coverage. Deps `@zanii/{data-custody,train,retention,attest}`.
 
 ---
 
-## Real-world provenance (published — npm · zanii 0.24.0 Python)
+## Real-world provenance (published — npm · zanii Python)
 
 The same receipt that makes an AI agent accountable makes a shipment, an artwork, and an
 algorithm accountable. TS + Python parity.
@@ -261,7 +289,7 @@ algorithm accountable. TS + Python parity.
 
 ---
 
-## Runtime behavioral monitoring (published — npm · zanii 0.24.0 Python)
+## Runtime behavioral monitoring (published — npm · zanii Python)
 
 - **`@zanii/sentinel`** / **`zanii.sentinel`** — "antivirus for agents": the behavioral layer between
   `@zanii/monitor` (log integrity) and `@zanii/policy` (pre-action rules). `buildBaseline(agentId, { receipts, delegation })`
@@ -282,7 +310,7 @@ algorithm accountable. TS + Python parity.
 
 ---
 
-## Institutional trust (published — npm · zanii 0.24.0 Python)
+## Institutional trust (published — npm · zanii Python)
 
 - **`@zanii/credentials`** / **`zanii.credentials`** — verifiable institutional credentials (diplomas,
   licences, certifications), offline-verifiable in ms with no call to the registrar. **The package is
@@ -308,7 +336,7 @@ algorithm accountable. TS + Python parity.
 
 ---
 
-## Medical audit trails (published — npm · zanii 0.24.0 Python)
+## Medical audit trails (published — npm · zanii Python)
 
 - **`@zanii/health`** / **`zanii.health`** — medical audit trails **without leaking the pattern**. For
   medicine the **metadata IS the sensitive data** (access frequency to an oncology or psychiatric
@@ -335,7 +363,7 @@ algorithm accountable. TS + Python parity.
 
 ---
 
-## AgentCV (published — npm · zanii 0.24.0 Python)
+## AgentCV (published — npm · zanii Python)
 
 - **`@zanii/cv`** / **`zanii.cv`** — AgentCV: a signed, portable CV over data the ledger **already holds**
   (a *view*, not a new datastore) — `@zanii/kya`'s "read an agent's verified history" made portable.
@@ -350,7 +378,7 @@ algorithm accountable. TS + Python parity.
   subject. `buildCV`, `signCV`, `generateCV` (pull the ledger aggregate), `cvHash`, `summarize`.
   Cross-language: a Python-signed CV verifies in TS. Deps `@zanii/core` + `@zanii/a2a-directory`.
 
-## Agent economy (published — npm · zanii 0.24.0 Python)
+## Agent economy (published — npm · zanii Python)
 
 - **`@zanii/escrow`** / **`zanii.escrow`** — conditional payments as **verifiable agreements, never held
   funds**. Three artifacts: co-signed **terms** (`buildEscrowBody` — payer/payee/`Money` in integer minor
@@ -385,7 +413,7 @@ algorithm accountable. TS + Python parity.
   views, not completeness — split views are caught when views are compared; what dies is *quiet*
   equivocation. Deps `@zanii/core` + `@zanii/witness`.
 
-## Lifecycle, agreements, governance, post-quantum (published — npm · zanii 0.24.0 Python)
+## Lifecycle, agreements, governance, post-quantum (published — npm · zanii Python)
 
 - **`@zanii/succession`** / **`zanii.succession`** — key rotation with **signed continuity**: the owner
   (the root authority whose delegation empowered the old key) attests "B succeeds A", so
@@ -422,10 +450,11 @@ algorithm accountable. TS + Python parity.
   a failure, never an Ed25519-only fallback; `transitionPayload`/`verifyTransition` — anchor the
   binding **unsalted** into the SHA-256 Merkle log now, so the anchored timestamp proves it predates
   any future Ed25519 break. Cross-language verified BOTH directions (final FIPS 204: noble ↔
-  dilithium-py; locked by `tests/pq_vector.json`). Limit: pre-migration receipts are **not re-signed**
+  dilithium-py; locked by `tests/pq_vector.json`). Hybrid encryption: `hybridSeal`/`hybrid_seal` (X25519 +
+  ML-KEM-768, both directions interoperable; Python needs `zanii[pq]`). SLH-DSA is TypeScript-only. Limit: pre-migration receipts are **not re-signed**
   — their post-quantum protection is the anchored timestamp, not the signature.
 
-## Custody, interop, legal identity (published — npm · zanii 0.24.0 Python)
+## Custody, interop, legal identity (published — npm · zanii Python)
 
 - **`@zanii/broker`** / **`zanii.broker`** — the credential broker that closes the ecosystem's own
   stated hole ("an agent still holding raw credentials can act off the rails"). One invariant: **the
@@ -458,7 +487,7 @@ algorithm accountable. TS + Python parity.
   `fetchAndVerifyOwner`. Limit: **domain control ≠ corporate registration** — real KYB stays
   off-protocol; a false claim becomes signed, permanent, attributable — never certified.
 
-## The Zanii L1 bridge (published — npm · zanii 0.24.0 Python)
+## The Zanii L1 bridge (published — npm · zanii Python)
 
 - **`@zanii/chain-bridge`** / **`zanii.chain_bridge`** (`pip install "zanii[chain]"`) — **one keypair,
   two products**: the Zanii L1 (blockchain.zanii.agency) and the ledger both use Ed25519, so a chain
@@ -478,7 +507,7 @@ algorithm accountable. TS + Python parity.
 - **`@zanii/payments` v0.2.0** — **ZAN** (9 decimals) built in: `parseMoney('1.5','ZAN')` →
   `{minor:'1500000000'}` zi, flowing into escrow terms, SLA prices, and insurance limits.
 
-## Data custody & training provenance (published — npm · zanii 0.24.0 Python)
+## Data custody & training provenance (published — npm · zanii Python)
 
 - **`@zanii/train`** / **`zanii.train`** — training-data provenance + **subject-absence proofs**.
   The claim buyers want is negative ("my data was never used to train your model"); for a declared
@@ -513,7 +542,7 @@ See also **`docs/CLAIMS.md`** — the ecosystem-wide claims ladder (claim → me
 where it stops), the purpose-binding convention (`data.<class>.<op>` via `scopesAllow`, zero new
 code), and the standing "Base carries the trust claim, the Zanii L1 does not" rule.
 
-## The data-sovereignty suite (published — npm · zanii 0.24.0 Python)
+## The data-sovereignty suite (published — npm · zanii Python)
 
 Five composable primitives, all client-side, **zero server changes** — receipt builders + verifiers
 over `/v1/receipts`, `verifyReceiptChain` unchanged, read via the tag-agnostic `/v1/subjects/{tag}`.
@@ -544,5 +573,61 @@ over `/v1/receipts`, `verifyReceiptChain` unchanged, read via the tag-agnostic `
   `buildAgeAssertion`, `verifyAgeAssertion`. Limit: proves an assertion was made, not that the person
   truly meets the threshold.
 
-`@zanii/zk` stays **deferred** — a hash-commitment package named "zk" would be a lie; it ships only when
-it can be real zero-knowledge (a proving-system build, not a relabel).
+`@zanii/zk` / `zanii.zk` — small, honest privacy primitives: Pedersen commitments on ristretto255 with
+checkable totals, hash-chain "value >= t" proofs and set-membership proofs. No SNARKs, no general range
+proofs. The Python version is pure Python and not constant-time (fine for verifying and for values opened later).
+
+---
+
+## Regulator Hub packages (published 2026-10-29: npm · `zanii` 0.28.0)
+
+All optional and additive; wire v1 unchanged. Legal tables are a draft mapping, not legal advice: assumed
+deadlines and secondary sources are flagged in the data.
+
+- **`@zanii/jurisdiction`** / **`zanii.jurisdiction`**: signed bindings `{v:1, type:"zanii.jurisdiction", subject,
+  regulator, jurisdiction, sector, licence, issued_at, expires_at, basis: self_declared|regulator_attested, signer, sig}`.
+  `buildJurisdiction` / `build_jurisdiction`, `verifyJurisdiction`, `jurisdictionHash`, `latestBinding`, `agentsUnder`.
+  Closed code registry (AE, AE-DIFC, AE-ADGM, SA, EU-<CC>). A binding names who an agent claims to fall under; it does not
+  prove the authority licensed it unless `basis` is `regulator_attested` by that authority's key.
+- **`@zanii/regulator` 0.2.0**: one clock engine over a labelled regime table (law, guidance or proposal, with sources and
+  `verified`): `regimes({ jurisdiction })` (`EU-DE` also matches EU-wide rules; `AE-DIFC` does not inherit `AE`),
+  `clock(regime, awareAt)`, `scopedFeed` by jurisdiction/sector/regulator through bindings, `attestSupervision` /
+  `verifySupervision`. `incidentClock` and every 0.1.0 export are unchanged. Node 18.20 or later.
+- **`@zanii/incident-report`** / **`zanii.incident_report`**: `createIncidentReport({ incident, evidence: { sth, receipts },
+  issuedAt }, key)` fills the Art. 73 draft template (42 fields) and the OECD framework (29 criteria), every field from the
+  evidence, the reporter (marked `caller`) or null with a reason; `verifyIncidentReport` rebuilds and compares, and refuses
+  agents not in the evidence.
+- **`@zanii/post-market`** / **`zanii.post_market`**: `createPostMarket({ period, evidence, retentionMonths = 6, ... }, key)`
+  and `verifyPostMarket`: per-agent counts, retention proofs and named gaps (`chain_break`, `window_not_covered`,
+  `no_receipts`). Supply the agent's full history: it cannot prove no newer receipt exists.
+- **`@zanii/ai-register`** / **`zanii.ai_register`**: `buildEntry(system, { asOf })`, `exportEuAiAct(entry, 'A'|'B'|'C')`,
+  `exportAtrs`, `exportEurocities`, `buildRegister(...)` / `verifyRegister`, CSV / JSON helpers. Null fields carry a
+  reason; a Certify certificate is not a notified-body certificate.
+- **`@zanii/status-feed`** / **`zanii.status_feed`**: `appendEvent(feed, event, key)`, `verifyFeed(entries, { signers })`,
+  `feedSince`, `toAtom`, `toJsonFeed`, `anchorFeedHead` (pass to `agent.record()`). Events: `delegation.revoked`,
+  `certificate.suspended|revoked|reinstated`, `incident.opened|closed`, `jurisdiction.issued|expired`. Proves who
+  published what in which order, not that the events are true.
+- **`@zanii/witness` 0.2.0**: C2SP `tlog-checkpoint` and `cosignature/v1` (`sthToCheckpoint`, `cosignCheckpoint`,
+  `handleAddCheckpoint`, `verifyCheckpointQuorum`). The log's own signature rides as a `0xff zanii/sth/v1` note line, so
+  a stock C2SP witness needs this handler.
+- **`@zanii/residency` 0.3.0**: `checkTransfers(touches, { from })` against a dated UAE PDPL / DIFC / ADGM transfer table:
+  allowed, needs_safeguard, refused or unknown; every rule `reviewed_by_counsel: false`.
+
+## Zanii products and this release (Certify, Blackbox, Underwrite)
+
+What the sibling product repos pin today (their `package.json` / `pyproject.toml`), and what moving
+to this release gives them. None of these ranges admits `@zanii/sdk` 0.6.0 or `zanii` 0.27.0 yet, so
+nothing changes for them until each repo bumps deliberately and reruns its own tests.
+
+| Product | Pins today | Gains after moving to `@zanii/sdk` ^0.6.0 / `zanii>=0.27` |
+|---|---|---|
+| **Zanii Certify**: `@zanii/certify` 0.7.1, Python `zanii-certify` | library: `@zanii/core` ^0.5.6, `@zanii/credentials` ^0.1.2, `@zanii/redact` 0.1.3, `@zanii/blackbox` 0.23.0 (no direct SDK); its server pins `@zanii/sdk` 0.5.4, `@zanii/signerd` 0.1.3; Python `zanii[pq]>=0.26.2,<0.27` | typed error codes on SDK calls, proof checks that also confirm the payload, revocation submit/check from code; `credentials` 0.2.0, `redact` 0.2.0 and `signerd` 0.2.0 each need their own bump |
+| **Zanii Blackbox**: `@zanii/blackbox` 0.23.1, Python `zanii-blackbox` 0.23.1 | `@zanii/sdk` ^0.5.4, `@zanii/core` ^0.5.6; Python `zanii>=0.26.1,<0.27` | the same codes (`HTTP_ERROR`, `QUEUE_FULL`, `JOURNAL_*`) and payload check, plus SQL journals and paged verification of large exports |
+| **Zanii Underwrite**: `@zanii/underwrite` (repo 0.2.0), Python `zanii-underwrite` | `@zanii/core` 0.5.6 (exact), `@zanii/certify` 0.6.1, `@zanii/blackbox` 0.23.0; its hub app pins `@zanii/sdk` 0.5.4; Python `zanii[pq]==0.26.2` | the same, once its Certify and Blackbox dependencies move too |
+
+Notes for code in those repos: match on `code` (`isZaniiError(e, 'HTTP_ERROR')`, Python
+`is_zanii_error`), since messages stay the same and 0.5.x errors carry no code at all. `isZaniiError`
+also recognises a 0.6 `ZaniiError` from another installed copy (it checks `name` and `code`, not only
+`instanceof`). The payload check is `fetchAndVerifyProof(server, hash, fetch, { payload, nonce })` /
+`fetch_and_verify_proof(server, hash, payload=..., nonce=...)` with the nonce `record()` kept;
+`salt: false` receipts need no nonce. A passing local check is not a production integration claim.
