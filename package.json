@@ -1,6 +1,6 @@
 {
   "name": "claude-code-zanii",
-  "version": "2.14.7",
+  "version": "2.14.8",
   "description": "Reverse-engineered Anthropic Claude Code CLI — interactive AI coding assistant in the terminal",
   "type": "module",
   "author": "claude-code-best <claude-code-best@proton.me>",
@@ -39,6 +39,7 @@
     "scripts/run-parallel.mjs",
     "scripts/setup-chrome-mcp.mjs",
     "docs/features/chatgpt-subscription.md",
+    "docs/features/kimi-subscription.md",
     "docs/chatgpt-subscription-changes.md",
     "docs/chatgpt-subscription-verification.md",
     "docs/chatgpt-subscription-design.md",

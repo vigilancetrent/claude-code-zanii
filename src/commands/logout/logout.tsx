@@ -8,6 +8,7 @@ import { clearPolicyLimitsCache } from '../../services/policyLimits/index.js';
 import { clearRemoteManagedSettingsCache } from '../../services/remoteManagedSettings/index.js';
 import { removeChatGPTAuth } from '../../services/api/openai/chatgptAuth.js';
 import { clearChatGPTModelCatalog } from '../../services/api/openai/chatgptModels.js';
+import { removeKimiAuth } from '../../services/api/openai/kimiAuth.js';
 import { getClaudeAIOAuthTokens, removeApiKey } from '../../utils/auth.js';
 import { clearBetasCaches } from '../../utils/betas.js';
 import { saveGlobalConfig } from '../../utils/config.js';
@@ -24,6 +25,7 @@ export async function performLogout({ clearOnboarding = false }): Promise<{ warn
   await removeApiKey();
   const chatgptLogout = await removeChatGPTAuth();
   clearChatGPTModelCatalog();
+  const kimiLogout = await removeKimiAuth();
 
   // Wipe all secure storage data on logout
   const secureStorage = getSecureStorage();
@@ -47,7 +49,7 @@ export async function performLogout({ clearOnboarding = false }): Promise<{ warn
     return updated;
   });
   // Retain the selected billing mode so logout cannot activate an old API key.
-  return chatgptLogout;
+  return { warning: chatgptLogout.warning ?? kimiLogout.warning };
 }
 
 // clearing anything memoized that must be invalidated when user/session/auth changes

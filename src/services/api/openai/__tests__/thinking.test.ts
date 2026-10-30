@@ -385,3 +385,33 @@ describe('adaptive reasoning_effort', () => {
     _resetEffortOverridesForTests()
   })
 })
+
+describe('kimi request body', () => {
+  const base = {
+    model: 'kimi-for-coding',
+    messages: [],
+    tools: [],
+    toolChoice: undefined,
+    enableThinking: true,
+    maxTokens: 32000,
+  }
+
+  test('sends only the Kimi thinking field and max_completion_tokens', () => {
+    const body = buildOpenAIRequestBody({
+      ...base,
+      thinkingStyle: 'kimi',
+      useMaxCompletionTokens: true,
+    })
+    expect(body.thinking).toEqual({ type: 'enabled' })
+    expect(body.enable_thinking).toBeUndefined()
+    expect(body.chat_template_kwargs).toBeUndefined()
+    expect(body.max_completion_tokens).toBe(32000)
+    expect(body.max_tokens).toBeUndefined()
+  })
+
+  test('keeps the DeepSeek extras for the default thinking style', () => {
+    const body = buildOpenAIRequestBody(base)
+    expect(body.enable_thinking).toBe(true)
+    expect(body.max_tokens).toBe(32000)
+  })
+})

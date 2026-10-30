@@ -177,6 +177,10 @@ export function buildOpenAIRequestBody(params: {
   promptCacheKey?: string
   /** Omitted when undefined so plain endpoints never see the key. */
   reasoningEffort?: ChatReasoningEffort
+  /** Kimi accepts only its own `thinking` field, not the DeepSeek extras. */
+  thinkingStyle?: 'kimi'
+  /** Kimi budgets reasoning and reply together under max_completion_tokens. */
+  useMaxCompletionTokens?: boolean
 }): ChatCompletionCreateParamsStreaming & {
   thinking?: { type: string }
   enable_thinking?: boolean
@@ -194,11 +198,15 @@ export function buildOpenAIRequestBody(params: {
     temperatureOverride,
     promptCacheKey,
     reasoningEffort,
+    thinkingStyle,
+    useMaxCompletionTokens,
   } = params
   return {
     model,
     messages,
-    max_tokens: maxTokens,
+    ...(useMaxCompletionTokens
+      ? { max_completion_tokens: maxTokens }
+      : { max_tokens: maxTokens }),
     ...(promptCacheKey && { prompt_cache_key: promptCacheKey }),
     ...(reasoningEffort && { reasoning_effort: reasoningEffort }),
     ...(tools.length > 0 && {
@@ -210,12 +218,19 @@ export function buildOpenAIRequestBody(params: {
     // Enable chain-of-thought output for DeepSeek and MiMo models.
     // When active, temperature/top_p/presence_penalty/frequency_penalty are ignored.
     ...(enableThinking && {
-      // Official DeepSeek API format
+      // Official DeepSeek API and Kimi format
       thinking: { type: 'enabled' },
-      // Self-hosted DeepSeek-V3.2 format
-      enable_thinking: true,
-      // Both DeepSeek self-hosted and MiMo formats in chat_template_kwargs
-      chat_template_kwargs: { thinking: true, enable_thinking: true },
+      ...(thinkingStyle === 'kimi'
+        ? {}
+        : {
+            // Self-hosted DeepSeek-V3.2 format
+            enable_thinking: true,
+            // Both DeepSeek self-hosted and MiMo formats in chat_template_kwargs
+            chat_template_kwargs: {
+              thinking: true,
+              enable_thinking: true,
+            },
+          }),
     }),
     // Only send temperature when thinking mode is off (DeepSeek ignores it anyway,
     // but other providers may respect it)

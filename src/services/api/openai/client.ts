@@ -105,11 +105,15 @@ export function getOpenAIClient(options?: {
   maxRetries?: number
   fetchOverride?: typeof fetch
   source?: string
+  /** Explicit credentials (subscription auth); bypasses the env-var cache. */
+  apiKey?: string
+  baseURL?: string
+  defaultHeaders?: Record<string, string>
 }): OpenAI {
-  if (cachedClient) return cachedClient
+  if (cachedClient && !options?.apiKey) return cachedClient
 
-  const apiKey = process.env.OPENAI_API_KEY || ''
-  const baseURL = process.env.OPENAI_BASE_URL
+  const apiKey = options?.apiKey ?? (process.env.OPENAI_API_KEY || '')
+  const baseURL = options?.baseURL ?? process.env.OPENAI_BASE_URL
 
   const baseFetch = options?.fetchOverride ?? (globalThis.fetch as typeof fetch)
   const wrappedFetch = wrapFetchForUsage(baseFetch)
@@ -128,9 +132,12 @@ export function getOpenAIClient(options?: {
     }),
     fetchOptions: getProxyFetchOptions({ forAnthropicAPI: false }),
     fetch: wrappedFetch,
+    ...(options?.defaultHeaders && {
+      defaultHeaders: options.defaultHeaders,
+    }),
   })
 
-  if (!options?.fetchOverride) {
+  if (!options?.fetchOverride && !options?.apiKey) {
     cachedClient = client
   }
 

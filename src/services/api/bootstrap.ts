@@ -21,6 +21,7 @@ import {
   isChatGPTAuthEnabled,
 } from './openai/chatgptAuth.js'
 import { fetchChatGPTModelCatalog } from './openai/chatgptModels.js'
+import { isKimiAuthEnabled } from './openai/kimiAuth.js'
 
 const bootstrapResponseSchema = lazySchema(() =>
   z.object({
@@ -163,6 +164,9 @@ export async function fetchBootstrapData(): Promise<void> {
     let additionalModelOptions: ModelOption[] | null = null
 
     if (getAPIProvider() === 'openai') {
+      // Kimi auth carries its own endpoint; the env-based /models probe below
+      // would hit api.openai.com without a key.
+      if (isKimiAuthEnabled()) return
       if (isChatGPTAuthEnabled()) {
         await fetchChatGPTModelCatalog(await getValidChatGPTAuth())
         return

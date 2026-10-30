@@ -28,6 +28,12 @@ import {
   anthropicToolChoiceToOpenAI,
 } from '@ant/model-provider'
 import { getValidChatGPTAuth, isChatGPTAuthEnabled } from './chatgptAuth.js'
+import {
+  getValidKimiAuth,
+  isKimiAuthEnabled,
+  resolveKimiModel,
+} from './kimiAuth.js'
+import { getClaudeCodeUserAgent } from '../../../utils/userAgent.js'
 import { getGatewayHintHeaders } from '../gatewayHints.js'
 import {
   fetchChatGPTModelCatalog,
@@ -279,7 +285,10 @@ export async function* queryModelOpenAI(
 > {
   try {
     // 1. Resolve model name
-    const useChatGPTResponses = isChatGPTAuthEnabled()
+    const kimiAuth = isKimiAuthEnabled()
+      ? await getValidKimiAuth(signal)
+      : undefined
+    const useChatGPTResponses = !kimiAuth && isChatGPTAuthEnabled()
     const chatgptAuth = useChatGPTResponses
       ? await getValidChatGPTAuth(signal)
       : undefined
@@ -290,9 +299,11 @@ export async function* queryModelOpenAI(
           options.fetchOverride as unknown as typeof fetch | undefined,
         )
       : undefined
-    const openaiModel = useChatGPTResponses
-      ? resolveChatGPTModel(options.model, catalog)
-      : resolveOpenAIModel(options.model)
+    const openaiModel = kimiAuth
+      ? resolveKimiModel(options.model)
+      : useChatGPTResponses
+        ? resolveChatGPTModel(options.model, catalog)
+        : resolveOpenAIModel(options.model)
 
     // 2. Normalize messages using shared preprocessing
     const messagesForAPI = normalizeMessagesForAPI(messages, tools)
@@ -371,10 +382,11 @@ export async function* queryModelOpenAI(
       openaiModel,
       toChatCompletionsReasoningEffort(appliedEffort),
     )
-    const enableThinking = isOpenAIThinkingEnabled(
-      openaiModel,
-      chatReasoningEffort,
-    )
+    // Kimi Code models think by default and require reasoning_content replay
+    // on tool continuation turns.
+    const enableThinking = kimiAuth
+      ? true
+      : isOpenAIThinkingEnabled(openaiModel, chatReasoningEffort)
     const openAIConvertibleMessages = messagesForAPI.filter(
       isOpenAIConvertibleMessage,
     )
@@ -441,9 +453,14 @@ export async function* queryModelOpenAI(
     // compatible endpoints intentionally receive no OpenAI-specific fields.
     const sessionId = getSessionId()
     const sessionPromptCacheKey = formatOpenAIPromptCacheKey(sessionId)
-    const promptCacheKey = useChatGPTResponses
-      ? sessionPromptCacheKey
-      : getOfficialOpenAIPromptCacheKey(process.env.OPENAI_BASE_URL, sessionId)
+    const promptCacheKey = kimiAuth
+      ? undefined
+      : useChatGPTResponses
+        ? sessionPromptCacheKey
+        : getOfficialOpenAIPromptCacheKey(
+            process.env.OPENAI_BASE_URL,
+            sessionId,
+          )
     const useOfficialOpenAICache = promptCacheKey !== undefined
 
     logForDebugging(
@@ -483,6 +500,13 @@ export async function* queryModelOpenAI(
             maxRetries: 0,
             fetchOverride: options.fetchOverride as unknown as typeof fetch,
             source: options.querySource,
+            ...(kimiAuth && {
+              apiKey: kimiAuth.accessToken,
+              baseURL: kimiAuth.baseURL,
+              defaultHeaders: {
+                'User-Agent': getClaudeCodeUserAgent(),
+              } as Record<string, string>,
+            }),
           }).chat.completions.create(
             buildOpenAIRequestBody({
               model: openaiModel,
@@ -493,7 +517,11 @@ export async function* queryModelOpenAI(
               maxTokens,
               temperatureOverride: options.temperatureOverride,
               promptCacheKey,
-              reasoningEffort: chatReasoningEffort,
+              reasoningEffort: kimiAuth ? undefined : chatReasoningEffort,
+              ...(kimiAuth && {
+                thinkingStyle: 'kimi' as const,
+                useMaxCompletionTokens: true,
+              }),
             }),
             {
               signal,

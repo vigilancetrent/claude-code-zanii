@@ -11,6 +11,7 @@ import { getSSLErrorHint } from '@ant/model-provider';
 import { sendNotification } from '../services/notifier.js';
 import { startChatGPTLogin } from '../services/api/openai/chatgptAuth.js';
 import { activateChatGPTSubscription } from '../services/api/openai/chatgptActivation.js';
+import { activateKimiSubscription, startKimiLogin } from '../services/api/openai/kimiAuth.js';
 import { clearChatGPTModelCatalog, fetchChatGPTModelCatalog } from '../services/api/openai/chatgptModels.js';
 import { CHATGPT_USAGE_URL } from '../utils/model/chatgptModels.js';
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js';
@@ -57,6 +58,12 @@ type OAuthStatus =
       state: 'chatgpt_subscription';
       phase: 'requesting' | 'waiting';
       authorizationUrl?: string;
+    }
+  | {
+      state: 'kimi_subscription';
+      phase: 'requesting' | 'waiting';
+      verificationUrl?: string;
+      userCode?: string;
     }
   | {
       state: 'gemini_api';
@@ -152,6 +159,46 @@ export function ConsoleOAuthFlow({
           state: 'error',
           message: error instanceof Error ? error.message : 'ChatGPT sign-in failed. Please try again.',
           toRetry: { state: 'chatgpt_subscription', phase: 'requesting' },
+        });
+      }
+    }
+    void runLogin();
+    return () => {
+      controller.abort();
+      cancelLogin?.();
+    };
+  }, [oauthStatus.state]);
+
+  useEffect(() => {
+    if (oauthStatus.state !== 'kimi_subscription') return;
+    const controller = new AbortController();
+    let cancelLogin: (() => void) | undefined;
+    async function runLogin() {
+      try {
+        const login = await startKimiLogin(controller.signal);
+        cancelLogin = login.cancel;
+        if (controller.signal.aborted) {
+          login.cancel();
+          return;
+        }
+        setOAuthStatus({
+          state: 'kimi_subscription',
+          phase: 'waiting',
+          verificationUrl: login.verificationUriComplete,
+          userCode: login.userCode,
+        });
+        void openBrowser(login.verificationUriComplete).catch(() => undefined);
+        await login.complete();
+        controller.signal.throwIfAborted();
+        activateKimiSubscription();
+        setOAuthStatus({ state: 'success' });
+        chatgptOnDoneRef.current();
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setOAuthStatus({
+          state: 'error',
+          message: error instanceof Error ? error.message : 'Kimi sign-in failed. Please try again.',
+          toRetry: { state: 'kimi_subscription', phase: 'requesting' },
         });
       }
     }
@@ -538,6 +585,15 @@ function OAuthStatusMessage({
                 {
                   label: (
                     <Text>
+                      Continue with Kimi · <Text dimColor>Use your Kimi Code subscription</Text>
+                      {'\n'}
+                    </Text>
+                  ),
+                  value: 'kimi_subscription',
+                },
+                {
+                  label: (
+                    <Text>
                       Gemini API · <Text dimColor>Google Gemini native REST/SSE</Text>
                       {'\n'}
                     </Text>
@@ -612,6 +668,12 @@ function OAuthStatusMessage({
                   logEvent('tengu_chatgpt_subscription_selected', {});
                   setOAuthStatus({
                     state: 'chatgpt_subscription',
+                    phase: 'requesting',
+                  });
+                } else if (value === 'kimi_subscription') {
+                  logEvent('tengu_kimi_subscription_selected', {});
+                  setOAuthStatus({
+                    state: 'kimi_subscription',
                     phase: 'requesting',
                   });
                 } else if (value === 'gemini_api') {
@@ -1084,6 +1146,33 @@ function OAuthStatusMessage({
               <Box>
                 <Spinner />
                 <Text>Waiting for ChatGPT authorization…</Text>
+              </Box>
+            </Box>
+          )}
+          <Text dimColor>Esc to cancel. Return here after approving access in your browser.</Text>
+        </Box>
+      );
+    }
+
+    case 'kimi_subscription': {
+      return (
+        <Box flexDirection="column" gap={1}>
+          <Text bold>Kimi Account Setup</Text>
+          {oauthStatus.phase === 'requesting' && (
+            <Box>
+              <Spinner />
+              <Text>Requesting a Kimi sign-in code…</Text>
+            </Box>
+          )}
+          {oauthStatus.phase === 'waiting' && oauthStatus.verificationUrl && (
+            <Box flexDirection="column" gap={1}>
+              <Text>Open this link and approve the code {oauthStatus.userCode}:</Text>
+              <Link url={oauthStatus.verificationUrl}>
+                <Text dimColor>{oauthStatus.verificationUrl}</Text>
+              </Link>
+              <Box>
+                <Spinner />
+                <Text>Waiting for Kimi authorization…</Text>
               </Box>
             </Box>
           )}

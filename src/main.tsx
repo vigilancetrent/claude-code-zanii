@@ -4864,6 +4864,7 @@ async function run(): Promise<CommanderCommand> {
     .command('login')
     .description('Sign in to your account')
     .option('--chatgpt', 'Continue with ChatGPT (account eligibility checked by OpenAI)')
+    .option('--kimi', 'Continue with Kimi (use your Kimi Code subscription)')
     .option('--email <email>', 'Pre-populate email address on the login page')
     .option('--sso', 'Force SSO login flow')
     .option('--console', 'Use Anthropic Console (API usage billing) instead of Claude subscription')
@@ -4875,15 +4876,17 @@ async function run(): Promise<CommanderCommand> {
         console: useConsole,
         claudeai,
         chatgpt,
+        kimi,
       }: {
         email?: string;
         sso?: boolean;
         console?: boolean;
         claudeai?: boolean;
         chatgpt?: boolean;
+        kimi?: boolean;
       }) => {
         const { authLogin } = await import('./cli/handlers/auth.js');
-        await authLogin({ email, sso, console: useConsole, claudeai, chatgpt });
+        await authLogin({ email, sso, console: useConsole, claudeai, chatgpt, kimi });
       },
     );
 

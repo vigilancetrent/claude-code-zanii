@@ -43,6 +43,10 @@ import {
   getChatGPTAuthStatus,
   isChatGPTAuthEnabled,
 } from '../../services/api/openai/chatgptAuth.js'
+import {
+  getKimiAuthStatus,
+  isKimiAuthEnabled,
+} from '../../services/api/openai/kimiAuth.js'
 import { jsonStringify } from '../../utils/slowOperations.js'
 import {
   buildAccountProperties,
@@ -121,16 +125,29 @@ export async function authLogin({
   console: useConsole,
   claudeai,
   chatgpt,
+  kimi,
 }: {
   email?: string
   sso?: boolean
   console?: boolean
   claudeai?: boolean
   chatgpt?: boolean
+  kimi?: boolean
 }): Promise<void> {
+  if (chatgpt && kimi) {
+    process.stderr.write(
+      'Error: --chatgpt and --kimi cannot be used together.\n',
+    )
+    process.exit(1)
+  }
   if (chatgpt) {
     const { authLoginChatGPT } = await import('./chatgptLogin.js')
     await authLoginChatGPT({ email, sso, console: useConsole, claudeai })
+    process.exit(process.exitCode ?? 0)
+  }
+  if (kimi) {
+    const { authLoginKimi } = await import('./kimiLogin.js')
+    await authLoginKimi({ email, sso, console: useConsole, claudeai })
     process.exit(process.exitCode ?? 0)
   }
   if (useConsole && claudeai) {
@@ -250,6 +267,29 @@ export async function authStatus(opts: {
   json?: boolean
   text?: boolean
 }): Promise<void> {
+  if (getAPIProvider() === 'openai' && isKimiAuthEnabled()) {
+    const status = await getKimiAuthStatus().catch(() => ({
+      loggedIn: false,
+    }))
+    if (opts.text) {
+      process.stdout.write(
+        `Provider: Kimi\nAuth: Kimi Code subscription\nConnection: ${status.loggedIn ? 'connected' : 'not connected'}\n`,
+      )
+    } else {
+      process.stdout.write(
+        jsonStringify(
+          {
+            loggedIn: status.loggedIn,
+            authMethod: 'kimi',
+            apiProvider: 'openai',
+          },
+          null,
+          2,
+        ) + '\n',
+      )
+    }
+    process.exit(status.loggedIn ? 0 : 1)
+  }
   if (getAPIProvider() === 'openai' && isChatGPTAuthEnabled()) {
     const status = await getChatGPTAuthStatus().catch(() => ({
       loggedIn: false,
