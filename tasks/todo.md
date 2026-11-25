@@ -252,3 +252,12 @@ Live results, run from source and from the built CLI:
 Changes since 2.14.10: compaction prompt without written analysis on Claude 5; system prompt kept on worktree switch; debug log for dropped reasoning; `getAllBaseTools` no longer resolves the model (the task-tool gate does not use it), which also stops the tool-chain integration tests failing on a machine signed in to Anthropic without an API key.
 
 Tests: precheck 6162 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.
+
+## 2026-11-26: `ccz work <config>` (pushed to main, NOT published; installed ccz is still 2.14.11)
+
+- New command: takes work orders from a Zanii Calls server and runs each in a separate git worktree by starting this same CLI as a separate headless process. Source of truth is `connector/ccz/work.ts` in the live_kit project; `src/cli/handlers/work.ts` is a copy (reformatted by this repo's formatter, logic unchanged). Its Python twin is `connector/zanii_worker.py`: change both together.
+- Wiring: `src/main.tsx`, registered before `mcp`, with an explicit `process.exit` after `workHandler` returns (startup leaves handles open; without it a config error printed and then hung).
+- Verified: 12 connector tests pass; built node and bun CLIs print help and exit 0, and exit 1 with a plain error on a missing config; `process.argv[1]` is the CLI entry file in both builds; one real order ran end to end on the node build against a local stand-in server (worktree branch `zanii/work-1`, main untouched, hand-in received).
+- Not tested inside the built CLI: cancel/stop and the time limit.
+- Test fix: `zaniiAgent.test.ts` replaced global `fetch` and left `ZANII_PROOF=1` set for the rest of the test process. It now flushes, switches the feature off and restores `fetch` when it finishes. Before, its stub answered other files' requests, and without the stub its queued submit reached the real network.
+- Tests: precheck 6174 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.

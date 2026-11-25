@@ -4603,6 +4603,21 @@ async function run(): Promise<CommanderCommand> {
     return program;
   }
 
+  // claude work
+
+  program
+    .command('work <config>')
+    .description('Take work orders from a Zanii Calls server and do them in git worktrees')
+    .option('--once', 'Take at most one order, then stop', () => true)
+    .action(async (config: string, { once }: { once?: boolean }) => {
+      const { workHandler } = await import('./cli/handlers/work.js');
+      await workHandler({ config, once });
+      // workHandler returns on a config error or after --once and reports
+      // failure through process.exitCode. Startup leaves handles open, so like
+      // the other plain commands this one has to exit explicitly.
+      process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0);
+    });
+
   // claude mcp
 
   const mcp = program

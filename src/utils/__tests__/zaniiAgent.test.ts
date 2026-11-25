@@ -1,4 +1,4 @@
-import { describe, expect, mock, test } from 'bun:test'
+import { afterAll, describe, expect, mock, test } from 'bun:test'
 import { createHash } from 'node:crypto'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -24,6 +24,18 @@ interface FetchRecord {
 
 const fetchCalls: FetchRecord[] = []
 let proofRouteStatus = 404
+
+// bun runs every test file in one process, so put the real fetch back when
+// this file is done. Left in place, this stub answers other files' requests.
+const realFetch = globalThis.fetch
+afterAll(async () => {
+  // Send what is still queued while the stub is in place, then switch the
+  // feature off, so nothing from this file reaches the real network later.
+  await zaniiStartupProof().catch(() => undefined)
+  delete process.env.ZANII_PROOF
+  _resetZaniiForTesting()
+  globalThis.fetch = realFetch
+})
 
 globalThis.fetch = (async (
   input: string | URL | Request,
