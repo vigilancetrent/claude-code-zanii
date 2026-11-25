@@ -138,7 +138,7 @@ async function writeHighWaterMark(
  * `claude-<family>-<major>` with major ≥ 5 opts out. Override with
  * CLAUDE_CODE_ENABLE_TODO_TOOLS=1 (force on) / =0 (force off).
  */
-export function areTodoToolsEnabled(model: string): boolean {
+export function areTodoToolsEnabled(_model?: string): boolean {
   const override = process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS
   if (override !== undefined && override !== '') {
     return isEnvTruthy(override)
@@ -146,7 +146,6 @@ export function areTodoToolsEnabled(model: string): boolean {
   // Upstream drops these for Claude 5+. This fork keeps them: without them a
   // long task has no list on screen, no stale-list reminder and nothing but
   // the summary to carry open work across compaction.
-  void model
   return true
 }
 

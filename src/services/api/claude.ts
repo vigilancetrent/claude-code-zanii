@@ -2186,6 +2186,22 @@ async function* queryModel(
             partialMessage = part.message
             ttftMs = Date.now() - start
             usage = updateUsage(usage, part.message?.usage)
+            // With the thinking-binding beta the API lists every thinking
+            // block it dropped or let through after a history edit. Each
+            // entry is a place this harness rewrote the conversation.
+            {
+              const transformations = (
+                part.message as unknown as {
+                  input_transformations?: unknown[]
+                }
+              ).input_transformations
+              if (transformations && transformations.length > 0) {
+                logForDebugging(
+                  `[thinking-binding] ${options.querySource}: ${jsonStringify(transformations)}`,
+                  { level: 'warn' },
+                )
+              }
+            }
             // Capture research from message_start if available (internal only).
             // Always overwrite with the latest value.
             if (

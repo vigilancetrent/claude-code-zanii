@@ -240,3 +240,15 @@ Source: two read-only audits against Anthropic's Fable 5.2 migration guide.
 - **Verification:** the structural nudge in `TaskUpdate` (3+ tasks closed, no verifier run) is active on Claude 5 again since 2.14.10 re-enabled the task tools. No second mechanism added.
 - **Tests:** precheck 6162 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.
 - **Next release:** 2.14.11, after the live Fable test (needs `ccz auth login --claudeai` on this PC).
+
+## 2026-11-26: 2.14.11: live-tested on Anthropic (Claude Max sign-in)
+
+Live results, run from source and from the built CLI:
+- **Fable 5.2:** single prompt OK (1M window); multi-step task with Read and Grep OK (4 turns, prompt cache reused, no rejected request); reasoning summaries arrive non-empty; auto-mode classifier ran and allowed a shell command; a general-purpose subagent returned a correct result; `/compact` worked with the new prompt and the session continued correctly after it.
+- **Opus 5.5, Sonnet 5.5, Haiku 5.5:** tool task OK on each, 1M window reported.
+- **Thinking binding:** the beta header and `drop_block` are accepted. `input_transformations` was empty in every run above, so a normal tool loop, a subagent and a compaction drop no reasoning. Drops are now logged at debug level as `[thinking-binding]`.
+- **Not exercised live:** fast mode, `/focus` mid-conversation, worktree switch, a refused response, forks (interactive only), the opt-in refusal fallback, Bedrock/Vertex/Foundry.
+
+Changes since 2.14.10: compaction prompt without written analysis on Claude 5; system prompt kept on worktree switch; debug log for dropped reasoning; `getAllBaseTools` no longer resolves the model (the task-tool gate does not use it), which also stops the tool-chain integration tests failing on a machine signed in to Anthropic without an API key.
+
+Tests: precheck 6162 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.

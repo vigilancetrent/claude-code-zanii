@@ -103,7 +103,6 @@ import { TaskListTool } from '@claude-code-best/builtin-tools/tools/TaskListTool
 import uniqBy from 'lodash-es/uniqBy.js'
 import { isSearchExtraToolsEnabledOptimistic } from './utils/searchExtraTools.js'
 import { areTodoToolsEnabled, isTodoV2Enabled } from './utils/tasks.js'
-import { getMainLoopModel } from './utils/model/model.js'
 import { getSettings_DEPRECATED } from './utils/settings/settings.js'
 // Dead code elimination: conditional import for CLAUDE_CODE_VERIFY_PLAN
 /* eslint-disable custom-rules/no-process-env-top-level, @typescript-eslint/no-require-imports */
@@ -220,7 +219,7 @@ export function getToolsForDefaultPreset(): string[] {
  * NOTE: This MUST stay in sync with https://console.statsig.com/4aF3Ewatb6xPVpCwxb5nA3/dynamic_configs/claude_code_global_system_caching, in order to cache the system prompt across users.
  */
 export function getAllBaseTools(): Tools {
-  const todoToolsEnabled = areTodoToolsEnabled(getMainLoopModel())
+  const todoToolsEnabled = areTodoToolsEnabled()
   const delegationDisabled =
     getSettings_DEPRECATED()?.subagentDelegation === 'disabled'
   return [
