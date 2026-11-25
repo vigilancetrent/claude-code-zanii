@@ -4,6 +4,7 @@ import {
   getSystemPromptSectionCache,
   setSystemPromptSectionCacheEntry,
 } from '../bootstrap/state.js'
+import { isClaude5Generation } from '../utils/model/claudeGeneration.js'
 
 type ComputeFn = () => string | null | Promise<string | null>
 
@@ -65,4 +66,15 @@ export async function resolveSystemPromptSections(
 export function clearSystemPromptSections(): void {
   clearSystemPromptSectionState()
   clearBetaHeaderLatches()
+}
+
+/**
+ * For a working-directory change mid-conversation (worktree enter/exit).
+ * Claude 5 binds its thinking blocks to the exact system prompt, so the
+ * sections stay as they are there; the tool result already names the new
+ * directory. They are recomputed at the next /clear or compaction.
+ */
+export function clearSystemPromptSectionsOnCwdChange(model: string): void {
+  if (isClaude5Generation(model.toLowerCase())) return
+  clearSystemPromptSections()
 }

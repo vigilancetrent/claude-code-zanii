@@ -1,4 +1,5 @@
 import { feature } from 'bun:bundle'
+import { isClaude5Generation } from '../../utils/model/claudeGeneration.js'
 import type { PartialCompactDirection } from '../../types/message.js'
 
 // Dead code elimination: conditional import for proactive mode
@@ -272,9 +273,40 @@ const NO_TOOLS_TRAILER =
   'an <analysis> block followed by a <summary> block. ' +
   'Tool calls will be rejected and you will fail the task.'
 
+const ANALYSIS_LEAD =
+  "Before providing your final summary, wrap your analysis in <analysis> tags to organize your thoughts and ensure you've covered all necessary points. In your analysis process:"
+const ANALYSIS_EXAMPLE =
+  '<analysis>\n[Your thought process, ensuring all points are covered thoroughly and accurately]\n</analysis>\n\n'
+
+/**
+ * Claude 5 models always think, so a written-out <analysis> block is paid
+ * for twice and then stripped by formatCompactSummary. Asking for reasoning
+ * in the reply can also be declined by the reasoning-extraction safeguard,
+ * which would fail the compaction. Keep the checklist, drop the block.
+ */
+function withoutWrittenAnalysis(prompt: string): string {
+  return prompt
+    .replaceAll(
+      ANALYSIS_LEAD,
+      'Before writing the summary, think through the following in your own reasoning, not in the response:',
+    )
+    .replaceAll(ANALYSIS_EXAMPLE, '')
+    .replaceAll(
+      'an <analysis> block followed by a <summary> block',
+      'a <summary> block',
+    )
+}
+
+function forModel(prompt: string, model: string | undefined): string {
+  return model && isClaude5Generation(model.toLowerCase())
+    ? withoutWrittenAnalysis(prompt)
+    : prompt
+}
+
 export function getPartialCompactPrompt(
   customInstructions?: string,
   direction: PartialCompactDirection = 'from',
+  model?: string,
 ): string {
   const template =
     direction === 'up_to'
@@ -288,10 +320,13 @@ export function getPartialCompactPrompt(
 
   prompt += NO_TOOLS_TRAILER
 
-  return prompt
+  return forModel(prompt, model)
 }
 
-export function getCompactPrompt(customInstructions?: string): string {
+export function getCompactPrompt(
+  customInstructions?: string,
+  model?: string,
+): string {
   let prompt = NO_TOOLS_PREAMBLE + BASE_COMPACT_PROMPT
 
   if (customInstructions && customInstructions.trim() !== '') {
@@ -300,7 +335,7 @@ export function getCompactPrompt(customInstructions?: string): string {
 
   prompt += NO_TOOLS_TRAILER
 
-  return prompt
+  return forModel(prompt, model)
 }
 
 /**

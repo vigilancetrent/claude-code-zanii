@@ -78,3 +78,42 @@ describe('formatCompactSummary', () => {
     expect(result).toContain('final')
   })
 })
+
+describe('compact prompt by model', () => {
+  test('older models are still asked for a written <analysis> block', async () => {
+    const { getCompactPrompt, getPartialCompactPrompt } = await import(
+      '../prompt'
+    )
+    for (const prompt of [
+      getCompactPrompt(),
+      getCompactPrompt(undefined, 'claude-opus-4-7'),
+      getPartialCompactPrompt(undefined, 'from', 'claude-sonnet-4-6'),
+    ]) {
+      expect(prompt).toContain('<analysis>')
+      expect(prompt).toContain('wrap your analysis in <analysis> tags')
+    }
+  })
+
+  test('Claude 5 models keep the checklist but write no <analysis> block', async () => {
+    const { getCompactPrompt, getPartialCompactPrompt } = await import(
+      '../prompt'
+    )
+    for (const prompt of [
+      getCompactPrompt('keep the todo list', 'claude-fable-5-2'),
+      getPartialCompactPrompt(undefined, 'from', 'claude-opus-5-5'),
+      getPartialCompactPrompt(undefined, 'up_to', 'claude-haiku-5-5'),
+    ]) {
+      expect(prompt).not.toContain('<analysis>')
+      expect(prompt).toContain('in your own reasoning, not in the response')
+      // The checklist itself, and the output contract, are unchanged.
+      expect(prompt).toContain(
+        'Pay special attention to specific user feedback',
+      )
+      expect(prompt).toContain('<summary>')
+      expect(prompt).toContain('a <summary> block')
+    }
+    expect(
+      getCompactPrompt('keep the todo list', 'claude-fable-5-2'),
+    ).toContain('keep the todo list')
+  })
+})

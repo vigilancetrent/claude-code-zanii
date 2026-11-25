@@ -231,3 +231,12 @@ Source: two read-only audits against Anthropic's Fable 5.2 migration guide.
 - **NOT verified live:** nothing here was run against Anthropic; this PC was signed in to ChatGPT at release time. First thing to check on a Fable session: a second turn after a tool call succeeds, and reasoning summaries show. If a Claude 5 request fails with a 400 naming `block_binding` or the beta header, set `CLAUDE_CODE_DISABLE_THINKING_BINDING=1` and fix forward.
 - **No unit test:** the refused-turn branch in `src/query.ts` (needs a query-loop harness).
 - **Still open:** `/break-cache`, `/advisor` and worktree switches still change the system prompt mid-conversation (covered by drop_block, at the cost of some reasoning). Verification is still prompt-only. The compaction and verifier prompts keep their old style. The opt-in refusal fallback does not filter blocks before the last `fallback` block.
+
+## 2026-11-26: after 2.14.10 (committed locally, NOT pushed, NOT released)
+
+- **Compaction prompt on Claude 5:** no written `<analysis>` block. The checklist stays but is done in the model's own reasoning. Reason: the block was output paid for and then stripped, and a required reasoning section can be declined by the reasoning-extraction safeguard, which would fail a compaction. Older models keep the old prompt.
+- **Worktree enter/exit on Claude 5:** the system prompt sections are no longer cleared mid-conversation; the tool result already names the new directory. They recompute at the next /clear or compaction.
+- **Decided not to change:** `/break-cache` and `/advisor` (changing the prompt or tool list is their purpose); the verifier prompt style (taste, no evidence of harm).
+- **Verification:** the structural nudge in `TaskUpdate` (3+ tasks closed, no verifier run) is active on Claude 5 again since 2.14.10 re-enabled the task tools. No second mechanism added.
+- **Tests:** precheck 6162 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.
+- **Next release:** 2.14.11, after the live Fable test (needs `ccz auth login --claudeai` on this PC).

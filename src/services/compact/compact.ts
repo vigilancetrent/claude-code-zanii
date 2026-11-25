@@ -461,7 +461,10 @@ export async function compactConversation(
       true,
     )
 
-    const compactPrompt = getCompactPrompt(customInstructions)
+    const compactPrompt = getCompactPrompt(
+      customInstructions,
+      context.options.mainLoopModel,
+    )
     const summaryRequest = createUserMessage({
       content: compactPrompt,
     })
@@ -866,7 +869,11 @@ export async function partialCompactConversation(
     context.setResponseLength?.(() => 0)
     context.onCompactProgress?.({ type: 'compact_start' })
 
-    const compactPrompt = getPartialCompactPrompt(customInstructions, direction)
+    const compactPrompt = getPartialCompactPrompt(
+      customInstructions,
+      direction,
+      context.options.mainLoopModel,
+    )
     const summaryRequest = createUserMessage({
       content: compactPrompt,
     })

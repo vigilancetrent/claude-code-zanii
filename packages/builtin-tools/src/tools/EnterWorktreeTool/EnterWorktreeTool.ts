@@ -1,6 +1,7 @@
 import { z } from 'zod/v4'
 import { getSessionId, setOriginalCwd } from 'src/bootstrap/state.js'
-import { clearSystemPromptSections } from 'src/constants/systemPromptSections.js'
+import { clearSystemPromptSectionsOnCwdChange } from 'src/constants/systemPromptSections.js'
+import { getMainLoopModel } from 'src/utils/model/model.js'
 import { logEvent } from 'src/services/analytics/index.js'
 import type { Tool } from 'src/Tool.js'
 import { buildTool, type ToolDef } from 'src/Tool.js'
@@ -96,7 +97,7 @@ export const EnterWorktreeTool: Tool<InputSchema, Output> = buildTool({
     setOriginalCwd(getCwd())
     saveWorktreeState(worktreeSession)
     // Clear cached system prompt sections so env_info_simple recomputes with worktree context
-    clearSystemPromptSections()
+    clearSystemPromptSectionsOnCwdChange(getMainLoopModel())
     // Clear memoized caches that depend on CWD
     clearMemoryFileCaches()
     getPlansDirectory.cache.clear?.()

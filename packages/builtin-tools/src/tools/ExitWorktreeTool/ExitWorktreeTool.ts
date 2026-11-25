@@ -5,7 +5,8 @@ import {
   setOriginalCwd,
   setProjectRoot,
 } from 'src/bootstrap/state.js'
-import { clearSystemPromptSections } from 'src/constants/systemPromptSections.js'
+import { clearSystemPromptSectionsOnCwdChange } from 'src/constants/systemPromptSections.js'
+import { getMainLoopModel } from 'src/utils/model/model.js'
 import { logEvent } from 'src/services/analytics/index.js'
 import type { Tool } from 'src/Tool.js'
 import { buildTool, type ToolDef } from 'src/Tool.js'
@@ -140,7 +141,7 @@ function restoreSessionToOriginalCwd(
     updateHooksConfigSnapshot()
   }
   saveWorktreeState(null)
-  clearSystemPromptSections()
+  clearSystemPromptSectionsOnCwdChange(getMainLoopModel())
   clearMemoryFileCaches()
   getPlansDirectory.cache.clear?.()
 }
