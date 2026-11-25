@@ -6,6 +6,7 @@ import {
   rejectsDisabledThinking,
   rejectsForcedToolChoice,
   rejectsSamplingParams,
+  rejectsThinkingBudget,
 } from '../claudeGeneration.js'
 
 describe('claudeGeneration', () => {
@@ -50,6 +51,14 @@ describe('claudeGeneration', () => {
     expect(rejectsSamplingParams('claude-opus-4-7')).toBe(true)
     expect(rejectsSamplingParams('claude-opus-4-6')).toBe(false)
     expect(rejectsSamplingParams('claude-haiku-4-5-20251001')).toBe(false)
+  })
+
+  test('manual thinking budgets are gone from Opus 4.7 on', () => {
+    expect(rejectsThinkingBudget('claude-opus-4-7')).toBe(true)
+    expect(rejectsThinkingBudget('claude-fable-5-2')).toBe(true)
+    expect(rejectsThinkingBudget('claude-haiku-5-5')).toBe(true)
+    expect(rejectsThinkingBudget('claude-opus-4-6')).toBe(false)
+    expect(rejectsThinkingBudget('claude-haiku-4-5-20251001')).toBe(false)
   })
 
   test('downgrades forced tool use only where it is rejected', () => {

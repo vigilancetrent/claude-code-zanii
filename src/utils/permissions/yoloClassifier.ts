@@ -43,6 +43,7 @@ import {
   extractToolUseBlock,
   parseClassifierResponse,
 } from './classifierShared.js'
+import { rejectsDisabledThinking } from '../model/claudeGeneration.js'
 import { getClaudeTempDir } from './filesystem.js'
 
 // Dead code elimination: conditional imports for auto mode classifier prompts.
@@ -693,6 +694,12 @@ function getClassifierThinkingConfig(
     resolveAntModel(model)?.alwaysOnThinking
   ) {
     return [undefined, 2048]
+  }
+  // These models cannot turn thinking off, and thinking shares max_tokens
+  // with the verdict. Without headroom the reply can end before the verdict,
+  // which is read as "block".
+  if (rejectsDisabledThinking(model.toLowerCase())) {
+    return [undefined, 8192]
   }
   return [false, 0]
 }

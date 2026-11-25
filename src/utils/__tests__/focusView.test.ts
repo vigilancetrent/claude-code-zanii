@@ -55,3 +55,27 @@ describe('focus mode flag for the system prompt', () => {
     setFocusModeActive(false)
   })
 })
+
+describe('focus mode announcements', () => {
+  test('reports a change once, and not when the prompt already reflects it', async () => {
+    const { markFocusModeAnnounced, setFocusModeActive, takeFocusModeChange } =
+      await import('../focusView.js')
+    setFocusModeActive(false)
+    markFocusModeAnnounced()
+    expect(takeFocusModeChange()).toBeUndefined()
+
+    // Toggled while the prompt section is frozen: one reminder, then quiet.
+    setFocusModeActive(true)
+    expect(takeFocusModeChange()).toBe(true)
+    expect(takeFocusModeChange()).toBeUndefined()
+    setFocusModeActive(false)
+    expect(takeFocusModeChange()).toBe(false)
+
+    // Prompt recomputed every turn (older models): never a reminder.
+    setFocusModeActive(true)
+    markFocusModeAnnounced()
+    expect(takeFocusModeChange()).toBeUndefined()
+    setFocusModeActive(false)
+    markFocusModeAnnounced()
+  })
+})

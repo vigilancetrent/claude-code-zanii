@@ -143,8 +143,11 @@ export function areTodoToolsEnabled(model: string): boolean {
   if (override !== undefined && override !== '') {
     return isEnvTruthy(override)
   }
-  const major = /claude-(?:opus|sonnet|haiku|fable)-(\d+)/.exec(model)?.[1]
-  return major === undefined || Number(major) < 5
+  // Upstream drops these for Claude 5+. This fork keeps them: without them a
+  // long task has no list on screen, no stale-list reminder and nothing but
+  // the summary to carry open work across compaction.
+  void model
+  return true
 }
 
 export function isTodoV2Enabled(): boolean {

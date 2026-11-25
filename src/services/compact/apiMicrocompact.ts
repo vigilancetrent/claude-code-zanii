@@ -62,6 +62,8 @@ export type ContextManagementConfig = {
 
 // API-based microcompact implementation that uses native context management
 export function getAPIContextManagement(options?: {
+  /** Model context window; the clearing trigger scales with it. */
+  contextWindow?: number
   hasThinking?: boolean
   isRedactThinkingActive?: boolean
   clearAllThinking?: boolean
@@ -99,12 +101,21 @@ export function getAPIContextManagement(options?: {
   }
 
   if (useClearToolResults) {
+    // The defaults were sized for a 200K window. On a 1M window they would
+    // start clearing at 18% and reset the prompt cache each time, so scale:
+    // start at 80% of the window and clear a fifth of it.
+    const window = options?.contextWindow ?? 0
+    const scaled = window > 250_000
     const triggerThreshold = process.env.API_MAX_INPUT_TOKENS
       ? parseInt(process.env.API_MAX_INPUT_TOKENS, 10)
-      : DEFAULT_MAX_INPUT_TOKENS
+      : scaled
+        ? Math.floor(window * 0.8)
+        : DEFAULT_MAX_INPUT_TOKENS
     const keepTarget = process.env.API_TARGET_INPUT_TOKENS
       ? parseInt(process.env.API_TARGET_INPUT_TOKENS, 10)
-      : DEFAULT_TARGET_INPUT_TOKENS
+      : scaled
+        ? Math.floor(window * 0.6)
+        : DEFAULT_TARGET_INPUT_TOKENS
 
     const strategy: ContextEditStrategy = {
       type: 'clear_tool_uses_20250919',
@@ -123,12 +134,21 @@ export function getAPIContextManagement(options?: {
   }
 
   if (useClearToolUses) {
+    // The defaults were sized for a 200K window. On a 1M window they would
+    // start clearing at 18% and reset the prompt cache each time, so scale:
+    // start at 80% of the window and clear a fifth of it.
+    const window = options?.contextWindow ?? 0
+    const scaled = window > 250_000
     const triggerThreshold = process.env.API_MAX_INPUT_TOKENS
       ? parseInt(process.env.API_MAX_INPUT_TOKENS, 10)
-      : DEFAULT_MAX_INPUT_TOKENS
+      : scaled
+        ? Math.floor(window * 0.8)
+        : DEFAULT_MAX_INPUT_TOKENS
     const keepTarget = process.env.API_TARGET_INPUT_TOKENS
       ? parseInt(process.env.API_TARGET_INPUT_TOKENS, 10)
-      : DEFAULT_TARGET_INPUT_TOKENS
+      : scaled
+        ? Math.floor(window * 0.6)
+        : DEFAULT_TARGET_INPUT_TOKENS
 
     const strategy: ContextEditStrategy = {
       type: 'clear_tool_uses_20250919',

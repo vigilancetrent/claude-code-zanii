@@ -226,9 +226,12 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   if (has1mContext(model) && !isClaude5Generation(getCanonicalName(model))) {
     betaHeaders.push(CONTEXT_1M_BETA_HEADER)
   }
+  // Claude 5 interleaves thinking without a header.
+  const claude5 = isClaude5Generation(getCanonicalName(model))
   if (
     !isEnvTruthy(process.env.DISABLE_INTERLEAVED_THINKING) &&
-    modelSupportsISP(model)
+    modelSupportsISP(model) &&
+    !claude5
   ) {
     betaHeaders.push(INTERLEAVED_THINKING_BETA_HEADER)
   }
@@ -242,6 +245,9 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   if (
     includeFirstPartyOnlyBetas &&
     modelSupportsISP(model) &&
+    // Claude 5 turns run long; its reasoning summaries are the progress the
+    // user sees, so they are requested instead of redacted (claude.ts).
+    !claude5 &&
     !getIsNonInteractiveSession() &&
     getInitialSettings().showThinkingSummaries !== true
   ) {

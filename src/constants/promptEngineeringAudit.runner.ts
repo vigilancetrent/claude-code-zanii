@@ -621,10 +621,24 @@ describe('Opus 4.7 Prompt Engineering Audit', () => {
   // #16 每回复最多一个问题 (One Question Per Response)
   // TXT 来源: {tone_and_formatting} line 71
   // ------------------------------------------------------------------
-  describe('#16 One question per response', () => {
-    test('limits questions per response', async () => {
+  describe('#16 Questions are batched after independent work', () => {
+    test('asks needed questions together', async () => {
       const prompt = await getFullPrompt()
-      expect(prompt).toContain('one question per response')
+      expect(prompt).toContain('ask the ones you need together')
+    })
+  })
+
+  describe('#17 Finishing work and final recap (Claude 5)', () => {
+    test('tells the model not to stop while work is owed', async () => {
+      const prompt = await getFullPrompt()
+      expect(prompt).toContain('# Finishing work')
+      expect(prompt).toContain('avoid stopping while you still owe work')
+    })
+
+    test('final recap is sized to the work, not capped', async () => {
+      const prompt = await getFullPrompt()
+      expect(prompt).toContain('Size the recap to the work')
+      expect(prompt).not.toContain('report the result in one or two sentences')
     })
   })
 

@@ -151,6 +151,15 @@ export const COST_OPUS_55_FAST = {
   webSearchRequests: 0.01,
 } as const satisfies ModelCosts
 
+// Fast mode pricing for Fable 5.2: $16 input / $80 output per Mtok
+export const COST_FABLE_52_FAST = {
+  inputTokens: 16,
+  outputTokens: 80,
+  promptCacheWriteTokens: 20,
+  promptCacheReadTokens: 0.4,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
 /** Cost tier for the current first-party Opus (5.5), by speed. */
 export function getCurrentOpusCostTier(fastMode: boolean): ModelCosts {
   return isFastModeEnabled() && fastMode ? COST_OPUS_55_FAST : COST_OPUS_55
@@ -279,8 +288,9 @@ export function getModelCosts(model: string, usage: Usage): ModelCosts {
     return getOpus46CostTier(isFastMode)
   }
 
-  if (shortName === 'claude-opus-5-5' && usage.speed === 'fast') {
-    return COST_OPUS_55_FAST
+  if (usage.speed === 'fast') {
+    if (shortName === 'claude-opus-5-5') return COST_OPUS_55_FAST
+    if (shortName === 'claude-fable-5-2') return COST_FABLE_52_FAST
   }
 
   const costs = MODEL_COSTS[shortName]

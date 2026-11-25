@@ -43,6 +43,7 @@ import { logError } from './utils/log.js'
 import {
   PROMPT_TOO_LONG_ERROR_MESSAGE,
   isPromptTooLongMessage,
+  REFUSAL_ERROR_DETAILS,
 } from './services/api/errors.js'
 import { logAntError, logForDebugging } from './utils/debug.js'
 import {
@@ -1120,6 +1121,65 @@ async function* queryLoop(
             }
           }
           queryCheckpoint('query_api_streaming_end')
+
+          // A refused response is not a complete response: the model was
+          // stopped by a safety classifier partway through. Its tool calls
+          // must not run and the turn must not continue.
+          if (
+            assistantMessages.some(
+              m =>
+                m.isApiErrorMessage && m.errorDetails === REFUSAL_ERROR_DETAILS,
+            )
+          ) {
+            // Cancels queued and running tools from this response.
+            if (streamingToolExecutor) {
+              streamingToolExecutor.discard()
+              streamingToolExecutor = new StreamingToolExecutor(
+                toolUseContext.options.tools,
+                canUseTool,
+                toolUseContext,
+              )
+            }
+            const partial = assistantMessages.filter(m => !m.isApiErrorMessage)
+            if (toolResults.length === 0) {
+              // Nothing ran: drop the partial output from the UI and the
+              // transcript so it is never sent back as if it were complete.
+              for (const msg of partial) {
+                yield { type: 'tombstone' as const, message: msg }
+              }
+            } else {
+              // A tool finished before the refusal arrived. Keep the record
+              // of what ran, and close every other call with an error result
+              // so the history stays valid.
+              const finished = new Set(
+                toolResults.flatMap(result =>
+                  Array.isArray(result.message?.content)
+                    ? result.message.content.flatMap(block =>
+                        block.type === 'tool_result' ? [block.tool_use_id] : [],
+                      )
+                    : [],
+                ),
+              )
+              for (const message of yieldMissingToolResultBlocks(
+                partial,
+                'Cancelled: the model response was refused before this tool ran.',
+              )) {
+                const block = Array.isArray(message.message.content)
+                  ? message.message.content[0]
+                  : undefined
+                if (
+                  block &&
+                  typeof block === 'object' &&
+                  block.type === 'tool_result' &&
+                  !finished.has(block.tool_use_id)
+                ) {
+                  yield message
+                }
+              }
+            }
+            toolUseBlocks.length = 0
+            needsFollowUp = false
+          }
 
           // Yield deferred microcompact boundary message using actual API-reported
           // token deletion count instead of client-side estimates.

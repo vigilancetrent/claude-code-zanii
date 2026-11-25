@@ -1,4 +1,5 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
+import { takeFocusModeChange } from './focusView.js'
 import { repeatedFailureReminder } from './repeatedFailure.js'
 import type { ToolDiscoveryResult } from '../services/searchExtraTools/prefetch.js'
 import {
@@ -887,6 +888,9 @@ export async function getAttachments(
     maybe('date_change', () =>
       Promise.resolve(getDateChangeAttachments(messages)),
     ),
+    maybe('focus_mode_change', () =>
+      Promise.resolve(getFocusModeChangeAttachment()),
+    ),
     maybe('ultrathink_effort', () =>
       Promise.resolve(getUltrathinkEffortAttachment(input)),
     ),
@@ -1646,6 +1650,23 @@ export function getMcpInstructionsDeltaAttachment(
   const delta = getMcpInstructionsDelta(mcpClients, messages ?? [], clientSide)
   if (!delta) return []
   return [{ type: 'mcp_instructions_delta', ...delta }]
+}
+
+/**
+ * /focus changed while the system prompt section is frozen (Claude 5): tell
+ * the model with an appended reminder instead of rewriting the prompt.
+ */
+function getFocusModeChangeAttachment(): Attachment[] {
+  const focus = takeFocusModeChange()
+  if (focus === undefined) return []
+  return [
+    {
+      type: 'critical_system_reminder',
+      content: focus
+        ? 'Focus mode is now on. The user only sees your final text message in each response, not tool calls or text between them, so put everything they need into the final message.'
+        : 'Focus mode is now off. The user sees your tool calls and the text you write between them again.',
+    },
+  ]
 }
 
 function getCriticalSystemReminderAttachment(

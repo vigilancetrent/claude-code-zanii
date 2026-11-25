@@ -661,11 +661,13 @@ describe('areTodoToolsEnabled', () => {
     expect(areTodoToolsEnabled('qwen3.8-27b')).toBe(true)
   })
 
-  test('disabled for Claude 5+ by model-id heuristic', () => {
+  // This fork keeps the tracking tools on Claude 5 (upstream drops them):
+  // they are the only on-screen task list and stale-work reminder.
+  test('stays enabled for Claude 5+', () => {
     delete process.env.CLAUDE_CODE_ENABLE_TODO_TOOLS
-    expect(areTodoToolsEnabled('claude-opus-5')).toBe(false)
-    expect(areTodoToolsEnabled('claude-fable-5-1[1m]')).toBe(false)
-    expect(areTodoToolsEnabled('us.anthropic.claude-sonnet-5-v1')).toBe(false)
+    expect(areTodoToolsEnabled('claude-opus-5')).toBe(true)
+    expect(areTodoToolsEnabled('claude-fable-5-2')).toBe(true)
+    expect(areTodoToolsEnabled('us.anthropic.claude-sonnet-5-v1')).toBe(true)
   })
 
   test('env override wins both ways', () => {

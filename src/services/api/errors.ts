@@ -1184,6 +1184,9 @@ export function categorizeRetryableAPIError(
   return 'unknown'
 }
 
+/** `errorDetails` value on the message produced for a refused response. */
+export const REFUSAL_ERROR_DETAILS = 'refusal'
+
 export function getErrorMessageIfRefusal(
   stopReason: BetaStopReason | null,
   model: string,
@@ -1198,13 +1201,14 @@ export function getErrorMessageIfRefusal(
     ? `${API_ERROR_MESSAGE_PREFIX}: Claude Code is unable to respond to this request, which appears to violate our Usage Policy (https://www.anthropic.com/legal/aup). Try rephrasing the request or attempting a different approach.`
     : `${API_ERROR_MESSAGE_PREFIX}: Claude Code is unable to respond to this request, which appears to violate our Usage Policy (https://www.anthropic.com/legal/aup). Please double press esc to edit your last message or start a new session for Claude Code to assist with a different task.`
 
-  const modelSuggestion =
-    model !== 'claude-sonnet-4-20250514'
-      ? ' If you are seeing this refusal repeatedly, try running /model claude-sonnet-4-20250514 to switch models.'
-      : ''
+  // Safety classifiers differ by model, so another current model may accept
+  // a request this one declined.
+  const onOpus = model.toLowerCase().includes('opus')
+  const modelSuggestion = ` If you are seeing this refusal repeatedly, try running /model ${onOpus ? 'sonnet' : 'opus'} to switch models.`
 
   return createAssistantAPIErrorMessage({
     content: baseMessage + modelSuggestion,
     error: 'invalid_request',
+    errorDetails: REFUSAL_ERROR_DETAILS,
   })
 }

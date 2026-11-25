@@ -82,7 +82,7 @@ export async function getPrompt(
 
 ## When to fork
 
-When you need to delegate work that benefits from full conversation context (e.g., continuing a multi-file refactor where the child needs the same system prompt and history), use \`fork: true\`. For most tasks, prefer specialized agent types (Explore, Plan, general-purpose).
+When you need to delegate work that benefits from full conversation context (e.g., continuing a multi-file refactor where the child needs the same system prompt and history), omit \`subagent_type\`: the fork inherits this conversation and runs on your model. Name a \`subagent_type\` (Explore, Plan, general-purpose) to start a fresh agent that sees only your prompt.
 
 **Don't peek.** The tool result includes an \`output_file\` path — do not Read or tail it unless the user explicitly asks for a progress check. You get a completion notification; trust it.
 
@@ -96,7 +96,7 @@ When you need to delegate work that benefits from full conversation context (e.g
 
 ## Writing the prompt
 
-${forkEnabled ? 'When spawning an agent without `fork: true`, it starts with zero context. ' : ''}Brief the agent like a smart colleague who just walked into the room — it hasn't seen this conversation, doesn't know what you've tried, doesn't understand why this task matters.
+${forkEnabled ? 'An agent started with a `subagent_type` starts with zero context. ' : ''}Brief the agent like a smart colleague who just walked into the room — it hasn't seen this conversation, doesn't know what you've tried, doesn't understand why this task matters.
 - Explain what you're trying to accomplish and why, what you've already learned or ruled out, and enough context for the agent to make judgment calls.
 - If you need a short response, say so ("report in under 200 words").
 - Lookups: hand over the exact command. Investigations: hand over the question — prescribed steps become dead weight when the premise is wrong.
@@ -124,7 +124,7 @@ The ${AGENT_TOOL_NAME} tool launches specialized agents (subprocesses) that auto
 
 ${agentListSection}
 
-When using the ${AGENT_TOOL_NAME} tool, specify a subagent_type parameter to select which agent type to use. If omitted, the general-purpose agent is used.${forkEnabled ? ` Set \`fork: true\` to fork from the parent conversation context, inheriting full history and model.` : ''}`
+When using the ${AGENT_TOOL_NAME} tool, specify a subagent_type parameter to select which agent type to use. ${forkEnabled ? 'If omitted, the agent is a fork: it inherits the full conversation and your model.' : 'If omitted, the general-purpose agent is used.'}`
 
   // Coordinator mode gets the slim prompt -- the coordinator system prompt
   // already covers usage notes, examples, and when-not-to-use guidance.
@@ -160,7 +160,7 @@ When NOT to use the ${AGENT_TOOL_NAME} tool:
   const concurrencyNote =
     !listViaAttachment && getSubscriptionType() !== 'pro'
       ? `
-- Launch multiple agents concurrently whenever possible, to maximize performance; to do that, use a single message with multiple tool uses`
+- A subagent costs a full extra context on its model. Delegate when work is independent and can run in parallel, or when it would fill your context with output you will not need again; do it yourself when it is a few tool calls. To run agents concurrently, use a single message with multiple tool uses`
       : ''
 
   // settings.subagentDelegation === 'explicit': keep the tool, tell the model
@@ -184,11 +184,11 @@ Usage notes:
     !isInProcessTeammate()
       ? `
 - You can optionally run agents in the background using the run_in_background parameter. When an agent runs in the background, you will be automatically notified when it completes — do NOT sleep, poll, or proactively check on its progress. Continue with other work or respond to the user instead.
-- **Foreground vs background**: Use foreground (default) when you need the agent's results before you can proceed — e.g., research agents whose findings inform your next steps. Use background when you have genuinely independent work to do in parallel.`
+${forkEnabled ? '- Agents run in the background here: the call returns at once and you are notified when the agent completes.' : "- **Foreground vs background**: Use foreground (default) when you need the agent's results before you can proceed — e.g., research agents whose findings inform your next steps. Use background when you have genuinely independent work to do in parallel."}`
       : ''
   }
 - To continue a previously spawned agent, use ${SEND_MESSAGE_TOOL_NAME} with the agent's ID or name as the \`to\` field. The agent resumes with its full context preserved. ${forkEnabled ? 'Each non-fork Agent invocation starts without context — provide a complete task description.' : 'Each Agent invocation starts fresh — provide a complete task description.'}
-- The agent's outputs should generally be trusted
+- Treat an agent's report as evidence, not fact: check a claim that matters before you repeat it or build on it
 - Clearly tell the agent whether you expect it to write code or just to do research (search, file reads, web fetches, etc.)${forkEnabled ? '' : ", since it is not aware of the user's intent"}
 - If the agent description mentions that it should be used proactively, then you should try your best to use it without the user having to ask for it first. Use your judgement.
 - If the user specifies that they want you to run agents "in parallel", you MUST send a single message with multiple ${AGENT_TOOL_NAME} tool use content blocks. For example, if you need to launch both a build-validator agent and a test-runner agent in parallel, send a single message with both tool calls.

@@ -321,7 +321,7 @@ describe('provider-aware model surface', () => {
     expect(labels.some(label => label.includes('1M'))).toBe(false)
   })
 
-  test('fast mode covers Opus 5.5 pricing', async () => {
+  test('fast mode covers Opus 5.5 and Fable 5.2 pricing', async () => {
     const { getModelCosts, COST_OPUS_55, COST_OPUS_55_FAST } = await import(
       '../../modelCost.js'
     )
@@ -334,5 +334,15 @@ describe('provider-aware model surface', () => {
         speed: 'fast',
       } as never),
     ).toEqual(COST_OPUS_55_FAST)
+    const { COST_FABLE_52, COST_FABLE_52_FAST } = await import(
+      '../../modelCost.js'
+    )
+    expect(getModelCosts('claude-fable-5-2', usage)).toEqual(COST_FABLE_52)
+    expect(
+      getModelCosts('claude-fable-5-2', {
+        ...(usage as object),
+        speed: 'fast',
+      } as never),
+    ).toEqual(COST_FABLE_52_FAST)
   })
 })

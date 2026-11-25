@@ -10,6 +10,21 @@ export function isFocusModeActive(): boolean {
   return focusModeActive
 }
 
+// The state the model has been told about, through the system prompt section
+// or a reminder. When it differs from the live state, attachments.ts appends
+// one reminder. On models whose system prompt is recomputed every turn the
+// two never differ, so no reminder is sent there.
+let announcedFocusMode = false
+export function markFocusModeAnnounced(): void {
+  announcedFocusMode = focusModeActive
+}
+/** Returns the new state once per change, otherwise undefined. */
+export function takeFocusModeChange(): boolean | undefined {
+  if (announcedFocusMode === focusModeActive) return undefined
+  announcedFocusMode = focusModeActive
+  return focusModeActive
+}
+
 function hasText(m: Message): boolean {
   const c = m.message?.content
   if (typeof c === 'string') return c.trim().length > 0

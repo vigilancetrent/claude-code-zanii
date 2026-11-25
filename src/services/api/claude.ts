@@ -69,6 +69,7 @@ import {
   CAPPED_DEFAULT_MAX_TOKENS,
   getModelMaxOutputTokens,
   getSonnet1mExpTreatmentEnabled,
+  getContextWindowForModel,
 } from '../../utils/context.js'
 import { resolveAppliedEffort } from '../../utils/effort.js'
 import { isEnvTruthy } from '../../utils/envUtils.js'
@@ -205,7 +206,9 @@ import { safeParseJSON } from '../../utils/json.js'
 import { getInferenceProfileBackingModel } from '../../utils/model/bedrock.js'
 import {
   downgradeForcedToolChoice,
+  isClaude5Generation,
   rejectsSamplingParams,
+  rejectsThinkingBudget,
 } from '../../utils/model/claudeGeneration.js'
 import {
   normalizeModelStringForAPI,
@@ -1048,6 +1051,13 @@ export function stripExcessMediaItems(
  * only re-inject when new deferred tools appear (e.g. MCP server connects).
  */
 const lastAnnouncedDeferredTools = new Set<string>()
+// Where each announcement was inserted, keyed by the message before it, so a
+// request for another conversation (a subagent) never receives it.
+const deferredToolAnnouncements: {
+  index: number
+  anchorUuid: string
+  message: UserMessage | AssistantMessage
+}[] = []
 
 async function* queryModel(
   messages: Message[],
@@ -1392,6 +1402,21 @@ async function* queryModel(
   // When the delta attachment is enabled, deferred tools are announced
   // via persisted deferred_tools_delta attachments instead of this
   // ephemeral prepend (which busts cache whenever the pool changes).
+  // Earlier announcements go back where they were first sent. Dropping them
+  // on the next request rewrites history, which invalidates Claude 5
+  // thinking blocks and misses the prompt cache on every model.
+  for (const announcement of deferredToolAnnouncements) {
+    if (
+      messagesForAPI[announcement.index - 1]?.uuid === announcement.anchorUuid
+    ) {
+      messagesForAPI = [
+        ...messagesForAPI.slice(0, announcement.index),
+        announcement.message,
+        ...messagesForAPI.slice(announcement.index),
+      ]
+    }
+  }
+
   if (useSearchExtraTools && !isDeferredToolsDeltaEnabled()) {
     // Diff current deferred tools against what's already been announced in
     // prior <available-deferred-tools> injections. Only re-inject when new
@@ -1412,6 +1437,8 @@ async function* queryModel(
         lastAnnouncedDeferredTools.clear()
         for (const t of currentTools) lastAnnouncedDeferredTools.add(t)
 
+        const announcementIndex = messagesForAPI.length
+        const anchorUuid = messagesForAPI.at(-1)?.uuid
         messagesForAPI = [
           ...messagesForAPI,
           createUserMessage({
@@ -1419,6 +1446,13 @@ async function* queryModel(
             isMeta: true,
           }),
         ]
+        if (anchorUuid !== undefined) {
+          deferredToolAnnouncements.push({
+            index: announcementIndex,
+            anchorUuid,
+            message: messagesForAPI[announcementIndex]!,
+          })
+        }
       }
     }
   }
@@ -1624,6 +1658,7 @@ async function* queryModel(
   // Capture the betas sent in the last API request, including the ones that
   // were dynamically added, so we can log and send it to telemetry.
   const REFUSAL_FALLBACK_BETA_HEADER = 'server-side-fallback-2026-07-01'
+  const THINKING_BINDING_BETA_HEADER = 'thinking-binding-controls-2026-08-01'
 
   let lastRequestBetas: string[] | undefined
 
@@ -1692,7 +1727,10 @@ async function* queryModel(
     // setting that can greatly affect model quality and bashing.
     if (hasThinking && modelSupportsThinking(options.model)) {
       if (
-        !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING) &&
+        // A manual budget is a 400 on the models that removed it, so the
+        // opt-out only applies where a budget is still accepted.
+        (rejectsThinkingBudget(options.model.toLowerCase()) ||
+          !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_ADAPTIVE_THINKING)) &&
         modelSupportsAdaptiveThinking(options.model)
       ) {
         // For models that support adaptive thinking, always use adaptive
@@ -1718,8 +1756,42 @@ async function* queryModel(
       }
     }
 
+    const lowerModel = options.model.toLowerCase()
+    // Opus 4.7 and later return empty thinking text unless asked. Ask for the
+    // summary so a long turn is not silent. Skipped when the redact header is
+    // on, and on older models, which reject the field.
+    if (
+      thinking?.type === 'adaptive' &&
+      rejectsThinkingBudget(lowerModel) &&
+      !betasParams.includes(REDACT_THINKING_BETA_HEADER)
+    ) {
+      thinking = {
+        ...thinking,
+        display: 'summarized',
+      } as BetaMessageStreamParams['thinking']
+    }
+    // Claude 5 thinking blocks are bound to the exact system prompt, tools
+    // and history that produced them. This harness still edits history in
+    // places (compaction retries, forks, prompt sections that change), which
+    // would fail the request. Ask the API to drop a mismatched block instead.
+    // CLAUDE_CODE_DISABLE_THINKING_BINDING=1 turns this off.
+    if (
+      isClaude5Generation(lowerModel) &&
+      getAPIProvider() === 'firstParty' &&
+      !isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_THINKING_BINDING)
+    ) {
+      thinking = {
+        ...(thinking ?? { type: 'adaptive' }),
+        block_binding: { prefix_mismatch_behavior: 'drop_block' },
+      } as unknown as BetaMessageStreamParams['thinking']
+      if (!betasParams.includes(THINKING_BINDING_BETA_HEADER)) {
+        betasParams.push(THINKING_BINDING_BETA_HEADER)
+      }
+    }
+
     // Get API context management strategies if enabled
     const contextManagement = getAPIContextManagement({
+      contextWindow: getContextWindowForModel(options.model),
       hasThinking,
       isRedactThinkingActive: betasParams.includes(REDACT_THINKING_BETA_HEADER),
       clearAllThinking: false,
@@ -2623,6 +2695,9 @@ async function* queryModel(
       // starts a tool, then the non-streaming retry produces the same tool_use
       // and runs it again. See inc-4258.
       const disableFallback =
+        // Claude 5 turns can run many minutes; the non-streaming rerun has a
+        // 5-minute timeout and a lower output cap, so it cannot finish them.
+        isClaude5Generation(options.model.toLowerCase()) ||
         isEnvTruthy(process.env.CLAUDE_CODE_DISABLE_NONSTREAMING_FALLBACK) ||
         getFeatureValue_CACHED_MAY_BE_STALE(
           'tengu_disable_streaming_to_non_streaming_fallback',

@@ -216,3 +216,18 @@ State: released as 2.14.9 together with the Kimi region work. See git log and np
 - **Not verified live:** no request was sent to Anthropic with the new models (this PC is signed in to ChatGPT), and no Kimi, Gemini or Grok account was available. The Bedrock IDs for the new models (`us.anthropic.<id>`) are a guess. Kimi's context window is still the 200K default; its real window is not known here.
 - **Opt-in, off by default:** server-side refusal fallback (`CLAUDE_CODE_REFUSAL_FALLBACK=1`) for Fable / Opus 5.x / Sonnet 5.5. Turn it on by default once it has been run against the live API.
 - **Left as is:** the 5h / 7d bars cannot be filled for other providers. ChatGPT responses carry no usage-limit headers, and OpenAI-compatible endpoints report per-minute buckets, not plan windows. The built-in status line hides the segments when there is no data.
+
+## 2026-11-26: 2.14.10: Fable 5.2 fit (request handling, prompts, task tracking)
+
+Source: two read-only audits against Anthropic's Fable 5.2 migration guide.
+
+- **Requests on Claude 5 (first-party):** send `thinking.block_binding.prefix_mismatch_behavior: "drop_block"` with beta `thinking-binding-controls-2026-08-01`, so a history edit drops the model's reasoning instead of failing the request (off switch: `CLAUDE_CODE_DISABLE_THINKING_BINDING=1`). Deferred-tool announcements are re-inserted where they were first sent. No manual thinking budget on Opus 4.7+ (main loop and token counting). Reasoning summaries requested (`display: "summarized"`); interleaved-thinking and redact-thinking headers not sent on Claude 5. Tool-result clearing starts at 80% of the window instead of 180K. A broken stream is retried as a stream, not rerun non-streaming. Fable / Mythos default to `high` effort. Fast mode enabled for Fable 5.2 ($16 / $80).
+- **Refusals:** a refused response cancels its tool calls and ends the turn; partial output is dropped when nothing ran. The message suggests a current model.
+- **System prompt on Claude 5:** `focus_mode` and `repo_map` sections are fixed per conversation; `/focus` is announced by an appended reminder.
+- **Prompts:** final recap sized to the work (no two-sentence cap); `# Finishing work` section; exploratory-question rule no longer conflicts with auto mode; questions batched; June 2026 cutoff for Fable / Mythos 5.1 and 5.2; fork workers no longer commit and have no 500-word cap; Agent tool description matches the code (fork = omit `subagent_type`, cost stated, background behaviour).
+- **Task tracking:** task tools are offered on Claude 5 again (upstream drops them).
+- **Auto-mode classifier:** 8K headroom on models that cannot turn thinking off.
+- **Tests:** precheck 6160 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail. Built CLI ran one-tool and two-tool prompts on `gpt-6.1-sol`.
+- **NOT verified live:** nothing here was run against Anthropic; this PC was signed in to ChatGPT at release time. First thing to check on a Fable session: a second turn after a tool call succeeds, and reasoning summaries show. If a Claude 5 request fails with a 400 naming `block_binding` or the beta header, set `CLAUDE_CODE_DISABLE_THINKING_BINDING=1` and fix forward.
+- **No unit test:** the refused-turn branch in `src/query.ts` (needs a query-loop harness).
+- **Still open:** `/break-cache`, `/advisor` and worktree switches still change the system prompt mid-conversation (covered by drop_block, at the cost of some reasoning). Verification is still prompt-only. The compaction and verifier prompts keep their old style. The opt-in refusal fallback does not filter blocks before the last `fallback` block.

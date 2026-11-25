@@ -173,6 +173,8 @@ export function isFastModeSupportedByModel(
   const model = modelSetting ?? getDefaultMainLoopModelSetting()
   const parsedModel = parseUserSpecifiedModel(model)
   return (
+    // Fable 5.2 has fast mode on the Claude API; 5.1 and 5 do not.
+    parsedModel.toLowerCase().includes('fable-5-2') ||
     parsedModel.toLowerCase().includes('opus-5-5') ||
     parsedModel.toLowerCase().includes('opus-4-7') ||
     parsedModel.toLowerCase().includes('opus-4-6')

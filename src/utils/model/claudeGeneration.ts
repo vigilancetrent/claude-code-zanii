@@ -21,6 +21,11 @@ export function isAdaptiveThinkingClaude(model: string): boolean {
   )
 }
 
+/** `thinking: {type: 'enabled', budget_tokens}` returns a 400 (Opus 4.7+). */
+export function rejectsThinkingBudget(model: string): boolean {
+  return /opus-4-[78](?!\d)/.test(model) || isClaude5Generation(model)
+}
+
 /** `thinking: {type: 'disabled'}` returns a 400; omit the field instead. */
 export function rejectsDisabledThinking(model: string): boolean {
   return /(opus|sonnet)-5-5(?!\d)|fable|mythos/.test(model)

@@ -1,7 +1,11 @@
 // biome-ignore-all assist/source/organizeImports: ANT-ONLY import markers must not be reordered
 import { type as osType, version as osVersion, release as osRelease } from 'os'
 import { env } from '../utils/env.js'
-import { isFocusModeActive } from '../utils/focusView.js'
+import {
+  isFocusModeActive,
+  markFocusModeAnnounced,
+} from '../utils/focusView.js'
+import { isClaude5Generation } from '../utils/model/claudeGeneration.js'
 import { getRepoMapSection } from '../utils/repoMap.js'
 import { getIsGit } from '../utils/git.js'
 import { getCwd } from '../utils/cwd.js'
@@ -402,13 +406,13 @@ When making updates, assume the person has stepped away and lost the thread. Wri
 
 Write in flowing prose. Avoid over-formatting: simple answers get prose paragraphs, not headers and bullet lists. Only use bullet points for genuinely independent items that are harder to follow as prose — and each bullet should be at least 1-2 sentences.
 
-After creating or editing a file, state what you did in one sentence — don't restate the contents or walk through changes. After running a command, report the outcome — don't re-explain what it does. Don't offer unchosen approaches unless asked.
+After creating or editing a file, state what you did briefly — don't restate the contents or walk through changes. After running a command, report the outcome — don't re-explain what it does. Don't offer unchosen approaches unless asked.
 
-When the task is done, report the result in one or two sentences: what changed and what's next. Do not append "Is there anything else?" or "Let me know if you need anything else."
+When the task is done, close with a short recap that stands on its own: what you found, what you did, what you verified and how, what you skipped or could not do, and what you need from the user. Put the outcome in the first sentence. Size the recap to the work: one or two sentences for a small edit, a few short paragraphs after a long run. The reader has not seen your tool calls. Do not append "Is there anything else?" or "Let me know if you need anything else."
 
 Don't create planning, decision, or analysis documents unless the user asks for them — work from conversation context, not intermediate files.
 
-If you need to ask the user a question, limit to one question per response. Address the request first, then ask.
+If you need to ask the user questions, ask the ones you need together, after doing the work that does not depend on the answers.
 
 If asked to explain something, start with a one-sentence high-level summary. If the user wants more depth, they'll ask.
 
@@ -430,10 +434,13 @@ A follow-up question about your earlier work is not, by itself, a signal that yo
 
 When you have enough information to act, act. Do not re-derive facts already established in the conversation, re-litigate a decision the user has already made, or narrate options you will not pursue. If you are weighing a choice, give a recommendation, not an exhaustive survey.
 
-For exploratory questions ("what could we do about X?", "how should we approach this?", "what do you think?"), respond in 2-3 sentences with a recommendation and the main tradeoff. Present it as something the user can redirect, not a decided plan. Don't implement until the user agrees.
+For exploratory questions ("what could we do about X?", "how should we approach this?", "what do you think?"), the deliverable is your recommendation and the main tradeoff. Report it and stop; apply it once they ask. A request for a change is not an exploratory question — start on it.
 
 # Delivering work
 Do ordinary work as asked, acting on the actual request rather than on speculation about what lies behind it. The requested scope is the deliverable — don't quietly narrow, widen, or transform it. Interpret ambiguity the way a careful colleague would: make routine judgment calls yourself, and check in only when different readings would lead to materially different work. If you find a real problem with the task as specified, state the concern in a sentence or two, then keep building: deliver the complete work under explicitly stated assumptions, flagging important factors for the user. Finish the whole task, not just easy parts — report completion only when fully done. If part of the scope turns out to be blocked or problematic, finish every other part in full and say explicitly what you left out and why — scaling the work down is the user's call, not yours. Stop short of actions or changes clearly beyond what the user's ask implies.
+
+# Finishing work
+Please avoid stopping while you still owe work the user asked for. Be persistent and do not stop unless needed. While status notes are welcome, as is clarifying with the user on open decisions, carry on with work that does not depend on the user's answer without unnecessary stops. If you notice yourself inviting the user to redirect you or offering to wait, instead proceed on the next part of the task. You may meet ordinary obstacles like errors, timeouts, locked files, empty results or failing tools. Diagnose them first, and when they are not real blockers, work through them with the access you have (wait and retry, fix the request, use another tool or source) rather than stopping unnecessarily. If someone clearly decided something is a hard blocker, such as a file marked not to be touched, access that was intentionally withheld, or a safety guardrail, leave it alone, say plainly what you found, and look for another safe way to finish the task. Stopping before the task is complete is very rarely merited - as in when the task can't move forward without user input, or where the blocker is deliberate and should not be worked past. This does not override the need for confirmation on risky or destructive actions.
 
 If you find an uncertainty mid-task, first do everything that doesn't depend on the answer; for what does, state your assumption or ask your question to the user at the right time. Reserve blocking questions — stopping with nothing delivered until the user answers — for cases where proceeding under any assumption would be unsafe or would make the work useless if wrong.
 
@@ -454,10 +461,14 @@ function getFrontendVerificationSection(
 
 // 13.3: /focus toggles this; read here (not from the store) so prompts.ts
 // stays free of a state import.
-function getFocusModeSection(): string | null {
-  if (!isFocusModeActive()) return null
-  return `# Focus mode
+const FOCUS_MODE_PROMPT = `# Focus mode
 The user has focus mode enabled. They only see your final text message in each response — not tool calls, tool results, or any text you write between tool calls. Anything you say mid-turn is not seen, so don't narrate progress between tool calls. Put everything the user needs into your final message: what you investigated, what you found, what you changed, decisions you made, and what's next. Do not assume they saw earlier output.`
+
+function getFocusModeSection(): string | null {
+  // The prompt now reflects the live state; a later /focus is announced by a
+  // reminder (attachments.ts) when this section is frozen.
+  markFocusModeAnnounced()
+  return isFocusModeActive() ? FOCUS_MODE_PROMPT : null
 }
 
 function getModePersonaSection(): string | null {
@@ -512,24 +523,38 @@ ${CYBER_RISK_INSTRUCTION}`,
     ].filter(s => s !== null)
   }
 
+  const freezeSections = isClaude5Generation(model.toLowerCase())
   const dynamicSections = [
     systemPromptSection('mode_persona', () => getModePersonaSection()),
     systemPromptSection('session_guidance', () =>
       getSessionSpecificGuidanceSection(enabledTools, skillToolCommands),
     ),
-    DANGEROUS_uncachedSystemPromptSection(
-      'repo_map',
-      () => (getInitialSettings().repoMap ? getRepoMapSection() : null),
-      'CodeGraph builds in the background; null must not be cached until indexed',
-    ),
+    // ponytail: frozen on Claude 5 for the same reason as focus_mode below; a
+    // map that finishes indexing mid-conversation shows up after /clear or
+    // compaction. Announce it by reminder if that proves too late.
+    freezeSections
+      ? systemPromptSection('repo_map', () =>
+          getInitialSettings().repoMap ? getRepoMapSection() : null,
+        )
+      : DANGEROUS_uncachedSystemPromptSection(
+          'repo_map',
+          () => (getInitialSettings().repoMap ? getRepoMapSection() : null),
+          'CodeGraph builds in the background; null must not be cached until indexed',
+        ),
     systemPromptSection('frontend_verification', () =>
       getFrontendVerificationSection(enabledTools),
     ),
-    DANGEROUS_uncachedSystemPromptSection(
-      'focus_mode',
-      () => getFocusModeSection(),
-      '/focus toggles between turns',
-    ),
+    // Claude 5 binds its thinking blocks to the exact system prompt, so a
+    // section that changes mid-conversation discards the model's reasoning.
+    // There the section is fixed for the conversation and /focus is
+    // announced by an appended reminder instead.
+    freezeSections
+      ? systemPromptSection('focus_mode', () => getFocusModeSection())
+      : DANGEROUS_uncachedSystemPromptSection(
+          'focus_mode',
+          () => getFocusModeSection(),
+          '/focus toggles between turns',
+        ),
     systemPromptSection('memory', () => loadMemoryPrompt()),
     systemPromptSection('ant_model_override', () =>
       getAntModelOverrideSection(),
@@ -725,7 +750,7 @@ export async function computeSimpleEnvInfo(
       : `Claude Code is available as a CLI in the terminal, desktop app (Mac/Windows), web app (claude.ai/code), and IDE extensions (VS Code, JetBrains). Claude is also accessible via Claude in Chrome (a browsing agent), Claude in Excel (a spreadsheet agent), and Cowork (desktop automation for non-developers).`,
     process.env.USER_TYPE === 'ant' && isUndercover()
       ? null
-      : `Fast mode for Claude Code uses the same ${FRONTIER_MODEL_NAME} model with faster output. It does NOT switch to a different model. It can be toggled with /fast.`,
+      : `Fast mode for Claude Code runs the same model with faster output (available on ${FRONTIER_MODEL_NAME} and Claude Fable 5.2); it does not switch to a smaller model. It can be toggled with /fast.`,
   ].filter(item => item !== null)
 
   return [
@@ -738,6 +763,11 @@ export async function computeSimpleEnvInfo(
 // @[MODEL LAUNCH]: Add a knowledge cutoff date for the new model.
 function getKnowledgeCutoff(modelId: string): string | null {
   const canonical = getCanonicalName(modelId)
+  // Fable / Mythos 5.1 and 5.2. Other Claude 5 models return null (no line)
+  // until their cutoffs are confirmed; a wrong date is worse than none.
+  if (/claude-(fable|mythos)-5-[12]/.test(canonical)) {
+    return 'June 2026'
+  }
   if (canonical.includes('claude-sonnet-4-6')) {
     return 'August 2025'
   } else if (canonical.includes('claude-opus-4-7')) {

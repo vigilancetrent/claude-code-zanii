@@ -7,14 +7,24 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const promptSource = readFileSync(join(__dirname, '..', 'prompt.ts'), 'utf-8')
 
 describe('prompt.ts fork-related text verification', () => {
-  test('does not contain "omit `subagent_type`" guidance', () => {
-    expect(promptSource).not.toMatch(/omit.*subagent_type/)
+  // The input schema has no `fork` field: AgentTool forks when subagent_type
+  // is omitted. The description must say that, not name a field that is
+  // silently ignored.
+  test('describes forking as omitting subagent_type', () => {
+    expect(promptSource).toMatch(/omit.*subagent_type/)
   })
 
-  test('contains `fork: true` in at least 3 locations (shared + whenToFork + forkExamples)', () => {
-    const matches = promptSource.match(/fork: true/g)
-    expect(matches).not.toBeNull()
-    expect(matches!.length).toBeGreaterThanOrEqual(3)
+  test('does not tell the model to set a `fork` field that does not exist', () => {
+    expect(promptSource).not.toMatch(/(use|Set) \\?`fork: true/)
+  })
+
+  test('fork instructions never tell a worker to commit', () => {
+    const forkSource = readFileSync(
+      join(__dirname, '..', 'forkSubagent.ts'),
+      'utf-8',
+    )
+    expect(forkSource).toContain('Do not commit.')
+    expect(forkSource).not.toMatch(/commit your changes before reporting/)
   })
 
   test('all forkEnabled references are ternary conditions, not negated', () => {

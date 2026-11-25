@@ -376,6 +376,12 @@ export function getDefaultEffortForModel(
     }
   }
 
+  // Fable and Mythos: most of the capability gain arrives by high, and early
+  // stops are more common below it, so do not lower them to medium.
+  if (/fable|mythos/.test(model.toLowerCase())) {
+    return 'high'
+  }
+
   // When ultrathink feature is on, default effort to medium (ultrathink bumps to high)
   if (isUltrathinkEnabled() && modelSupportsEffort(model)) {
     return 'medium'

@@ -3,6 +3,7 @@ import type { BetaMessageParam as MessageParam } from '@anthropic-ai/sdk/resourc
 // @aws-sdk/client-bedrock-runtime is imported dynamically in countTokensWithBedrock()
 // to defer ~279KB of AWS SDK code until a Bedrock call is actually made
 import type { CountTokensCommandInput } from '@aws-sdk/client-bedrock-runtime'
+import { rejectsThinkingBudget } from '../utils/model/claudeGeneration.js'
 import { getAPIProvider } from 'src/utils/model/providers.js'
 import { VERTEX_COUNT_TOKENS_ALLOWED_BETAS } from '../constants/betas.js'
 import type { Attachment } from '../utils/attachments.js'
@@ -191,10 +192,12 @@ export async function countMessagesTokensWithAPI(
         ...(filteredBetas.length > 0 && { betas: filteredBetas }),
         // Enable thinking if messages contain thinking blocks
         ...(containsThinking && {
-          thinking: {
-            type: 'enabled',
-            budget_tokens: TOKEN_COUNT_THINKING_BUDGET,
-          },
+          thinking: rejectsThinkingBudget(model.toLowerCase())
+            ? { type: 'adaptive' }
+            : {
+                type: 'enabled',
+                budget_tokens: TOKEN_COUNT_THINKING_BUDGET,
+              },
         }),
       })
 
@@ -334,10 +337,12 @@ export async function countTokensViaHaikuFallback(
     ...getExtraBodyParams(),
     // Enable thinking if messages contain thinking blocks
     ...(containsThinking && {
-      thinking: {
-        type: 'enabled',
-        budget_tokens: TOKEN_COUNT_THINKING_BUDGET,
-      },
+      thinking: rejectsThinkingBudget(model.toLowerCase())
+        ? { type: 'adaptive' }
+        : {
+            type: 'enabled',
+            budget_tokens: TOKEN_COUNT_THINKING_BUDGET,
+          },
     }),
   })
 
