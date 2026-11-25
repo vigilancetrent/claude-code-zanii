@@ -2,6 +2,15 @@ import { describe, expect, test } from 'bun:test'
 import { firstPartyNameToCanonical } from '../model'
 
 describe('firstPartyNameToCanonical', () => {
+  test('keeps Claude 5 point releases apart', () => {
+    expect(firstPartyNameToCanonical('claude-opus-5-5')).toBe('claude-opus-5-5')
+    expect(firstPartyNameToCanonical('claude-opus-5')).toBe('claude-opus-5')
+    expect(firstPartyNameToCanonical('us.anthropic.claude-fable-5-2')).toBe(
+      'claude-fable-5-2',
+    )
+    expect(firstPartyNameToCanonical('claude-opus-4-8')).toBe('claude-opus-4-8')
+  })
+
   test('maps opus-4-6 full name to canonical', () => {
     expect(firstPartyNameToCanonical('claude-opus-4-6-20250514')).toBe(
       'claude-opus-4-6',

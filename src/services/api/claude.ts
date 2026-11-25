@@ -204,6 +204,10 @@ import { validateBoundedIntEnvVar } from '../../utils/envValidation.js'
 import { safeParseJSON } from '../../utils/json.js'
 import { getInferenceProfileBackingModel } from '../../utils/model/bedrock.js'
 import {
+  downgradeForcedToolChoice,
+  rejectsSamplingParams,
+} from '../../utils/model/claudeGeneration.js'
+import {
   normalizeModelStringForAPI,
   parseUserSpecifiedModel,
 } from '../../utils/model/model.js'
@@ -550,7 +554,6 @@ export async function verifyApiKey(
             model,
             max_tokens: 1,
             messages,
-            temperature: 1,
             ...(betas.length > 0 && { betas: betas.filter(Boolean) }),
             metadata: getAPIMetadata(),
             ...getExtraBodyParams(),
@@ -1620,6 +1623,8 @@ async function* queryModel(
 
   // Capture the betas sent in the last API request, including the ones that
   // were dynamically added, so we can log and send it to telemetry.
+  const REFUSAL_FALLBACK_BETA_HEADER = 'server-side-fallback-2026-07-01'
+
   let lastRequestBetas: string[] | undefined
 
   const paramsFromContext = (retryContext: RetryContext) => {
@@ -1740,6 +1745,21 @@ async function* queryModel(
       betasParams.push(FAST_MODE_BETA_HEADER)
     }
 
+    // Server-side refusal fallback: when a safety classifier declines a
+    // request, the API re-runs it on a fallback model inside the same call.
+    // Opt-in (CLAUDE_CODE_REFUSAL_FALLBACK=1) until it has been run against
+    // the live API from this client.
+    const useRefusalFallback =
+      isEnvTruthy(process.env.CLAUDE_CODE_REFUSAL_FALLBACK) &&
+      getAPIProvider() === 'firstParty' &&
+      /fable|opus-5|sonnet-5-5/.test(options.model.toLowerCase())
+    if (
+      useRefusalFallback &&
+      !betasParams.includes(REFUSAL_FALLBACK_BETA_HEADER)
+    ) {
+      betasParams.push(REFUSAL_FALLBACK_BETA_HEADER)
+    }
+
     // AFK mode beta: latched once auto mode is first activated. Still gated
     // by isAgenticQuery per-call so classifiers/compaction don't get it.
     if (feature('TRANSCRIPT_CLASSIFIER')) {
@@ -1775,9 +1795,15 @@ async function* queryModel(
 
     // Only send temperature when thinking is disabled — the API requires
     // temperature: 1 when thinking is enabled, which is already the default.
-    const temperature = !hasThinking
-      ? (options.temperatureOverride ?? 1)
-      : undefined
+    // The newest models reject sampling params outright, so leave the default.
+    const temperature =
+      !hasThinking && !rejectsSamplingParams(options.model.toLowerCase())
+        ? (options.temperatureOverride ?? 1)
+        : undefined
+    const forcedTool = downgradeForcedToolChoice(
+      options.model,
+      options.toolChoice,
+    )
 
     // Filter out any empty-string beta headers before sending.
     // Constants like CACHE_EDITING_BETA_HEADER or AFK_MODE_BETA_HEADER
@@ -1797,9 +1823,11 @@ async function* queryModel(
         consumedPinnedEdits as any,
         options.skipCacheWrite,
       ),
-      system,
+      system: forcedTool.instruction
+        ? [...system, { type: 'text' as const, text: forcedTool.instruction }]
+        : system,
       tools: allTools,
-      tool_choice: options.toolChoice,
+      tool_choice: forcedTool.toolChoice,
       ...(useBetas && { betas: filteredBetas }),
       metadata: getAPIMetadata(),
       max_tokens: maxOutputTokens,
@@ -1815,6 +1843,7 @@ async function* queryModel(
         output_config: outputConfig,
       }),
       ...(speed !== undefined && { speed }),
+      ...(useRefusalFallback && { fallbacks: 'default' as const }),
     }
   }
 

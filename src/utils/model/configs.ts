@@ -126,6 +126,96 @@ export const CLAUDE_SONNET_4_6_CONFIG = {
   grok: 'claude-sonnet-4-6',
 } as const satisfies ModelConfig
 
+export const CLAUDE_OPUS_4_8_CONFIG = {
+  firstParty: 'claude-opus-4-8',
+  bedrock: 'us.anthropic.claude-opus-4-8',
+  vertex: 'claude-opus-4-8',
+  foundry: 'claude-opus-4-8',
+  openai: 'claude-opus-4-8',
+  gemini: 'claude-opus-4-8',
+  grok: 'claude-opus-4-8',
+} as const satisfies ModelConfig
+
+export const CLAUDE_OPUS_5_CONFIG = {
+  firstParty: 'claude-opus-5',
+  bedrock: 'us.anthropic.claude-opus-5',
+  vertex: 'claude-opus-5',
+  foundry: 'claude-opus-5',
+  openai: 'claude-opus-5',
+  gemini: 'claude-opus-5',
+  grok: 'claude-opus-5',
+} as const satisfies ModelConfig
+
+export const CLAUDE_OPUS_5_5_CONFIG = {
+  firstParty: 'claude-opus-5-5',
+  bedrock: 'us.anthropic.claude-opus-5-5',
+  vertex: 'claude-opus-5-5',
+  foundry: 'claude-opus-5-5',
+  openai: 'claude-opus-5-5',
+  gemini: 'claude-opus-5-5',
+  grok: 'claude-opus-5-5',
+} as const satisfies ModelConfig
+
+export const CLAUDE_SONNET_5_CONFIG = {
+  firstParty: 'claude-sonnet-5',
+  bedrock: 'us.anthropic.claude-sonnet-5',
+  vertex: 'claude-sonnet-5',
+  foundry: 'claude-sonnet-5',
+  openai: 'claude-sonnet-5',
+  gemini: 'claude-sonnet-5',
+  grok: 'claude-sonnet-5',
+} as const satisfies ModelConfig
+
+export const CLAUDE_SONNET_5_5_CONFIG = {
+  firstParty: 'claude-sonnet-5-5',
+  bedrock: 'us.anthropic.claude-sonnet-5-5',
+  vertex: 'claude-sonnet-5-5',
+  foundry: 'claude-sonnet-5-5',
+  openai: 'claude-sonnet-5-5',
+  gemini: 'claude-sonnet-5-5',
+  grok: 'claude-sonnet-5-5',
+} as const satisfies ModelConfig
+
+export const CLAUDE_HAIKU_5_5_CONFIG = {
+  firstParty: 'claude-haiku-5-5',
+  bedrock: 'us.anthropic.claude-haiku-5-5',
+  vertex: 'claude-haiku-5-5',
+  foundry: 'claude-haiku-5-5',
+  openai: 'claude-haiku-5-5',
+  gemini: 'claude-haiku-5-5',
+  grok: 'claude-haiku-5-5',
+} as const satisfies ModelConfig
+
+export const CLAUDE_FABLE_5_CONFIG = {
+  firstParty: 'claude-fable-5',
+  bedrock: 'us.anthropic.claude-fable-5',
+  vertex: 'claude-fable-5',
+  foundry: 'claude-fable-5',
+  openai: 'claude-fable-5',
+  gemini: 'claude-fable-5',
+  grok: 'claude-fable-5',
+} as const satisfies ModelConfig
+
+export const CLAUDE_FABLE_5_1_CONFIG = {
+  firstParty: 'claude-fable-5-1',
+  bedrock: 'us.anthropic.claude-fable-5-1',
+  vertex: 'claude-fable-5-1',
+  foundry: 'claude-fable-5-1',
+  openai: 'claude-fable-5-1',
+  gemini: 'claude-fable-5-1',
+  grok: 'claude-fable-5-1',
+} as const satisfies ModelConfig
+
+export const CLAUDE_FABLE_5_2_CONFIG = {
+  firstParty: 'claude-fable-5-2',
+  bedrock: 'us.anthropic.claude-fable-5-2',
+  vertex: 'claude-fable-5-2',
+  foundry: 'claude-fable-5-2',
+  openai: 'claude-fable-5-2',
+  gemini: 'claude-fable-5-2',
+  grok: 'claude-fable-5-2',
+} as const satisfies ModelConfig
+
 // @[MODEL LAUNCH]: Register the new config here.
 export const ALL_MODEL_CONFIGS = {
   haiku35: CLAUDE_3_5_HAIKU_CONFIG,
@@ -140,6 +230,15 @@ export const ALL_MODEL_CONFIGS = {
   opus45: CLAUDE_OPUS_4_5_CONFIG,
   opus46: CLAUDE_OPUS_4_6_CONFIG,
   opus47: CLAUDE_OPUS_4_7_CONFIG,
+  opus48: CLAUDE_OPUS_4_8_CONFIG,
+  opus5: CLAUDE_OPUS_5_CONFIG,
+  opus55: CLAUDE_OPUS_5_5_CONFIG,
+  sonnet5: CLAUDE_SONNET_5_CONFIG,
+  sonnet55: CLAUDE_SONNET_5_5_CONFIG,
+  haiku55: CLAUDE_HAIKU_5_5_CONFIG,
+  fable5: CLAUDE_FABLE_5_CONFIG,
+  fable51: CLAUDE_FABLE_5_1_CONFIG,
+  fable52: CLAUDE_FABLE_5_2_CONFIG,
 } as const satisfies Record<string, ModelConfig>
 
 export type ModelKey = keyof typeof ALL_MODEL_CONFIGS

@@ -12,6 +12,7 @@ import { removeKimiAuth } from '../../services/api/openai/kimiAuth.js';
 import { getClaudeAIOAuthTokens, removeApiKey } from '../../utils/auth.js';
 import { clearBetasCaches } from '../../utils/betas.js';
 import { saveGlobalConfig } from '../../utils/config.js';
+import { errorMessage } from '../../utils/errors.js';
 import { gracefulShutdownSync } from '../../utils/gracefulShutdown.js';
 import { getSecureStorage } from '../../utils/secureStorage/index.js';
 import { clearToolSchemaCache } from '../../utils/toolSchemaCache.js';
@@ -23,9 +24,18 @@ export async function performLogout({ clearOnboarding = false }): Promise<{ warn
   await flushTelemetry();
 
   await removeApiKey();
-  const chatgptLogout = await removeChatGPTAuth();
+  // Cleanup of another provider's credentials must not fail this logout, or
+  // the Anthropic login that calls it after spending its one-time code.
+  const cleanup = async (remove: () => Promise<{ warning?: string }>, name: string) => {
+    try {
+      return await remove();
+    } catch (error) {
+      return { warning: `Could not remove ${name} credentials: ${errorMessage(error)}` };
+    }
+  };
+  const chatgptLogout = await cleanup(removeChatGPTAuth, 'ChatGPT');
   clearChatGPTModelCatalog();
-  const kimiLogout = await removeKimiAuth();
+  const kimiLogout = await cleanup(removeKimiAuth, 'Kimi');
 
   // Wipe all secure storage data on logout
   const secureStorage = getSecureStorage();

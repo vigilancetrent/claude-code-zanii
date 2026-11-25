@@ -148,7 +148,9 @@ type RawUtilization = {
 let rawUtilization: RawUtilization = {}
 
 export function getRawUtilization(): RawUtilization {
-  return rawUtilization
+  // These windows describe a Claude subscription. After a switch to another
+  // provider the last values would otherwise stay frozen in the status line.
+  return isClaudeAISubscriber() ? rawUtilization : {}
 }
 
 function extractRawUtilization(headers: globalThis.Headers): RawUtilization {

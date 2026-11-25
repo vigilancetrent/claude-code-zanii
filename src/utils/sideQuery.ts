@@ -32,12 +32,24 @@ import { logForDebugging } from './debug.js'
 import { errorMessage } from './errors.js'
 import { getAPIProvider } from './model/providers.js'
 import { normalizeModelStringForAPI } from './model/model.js'
+import {
+  downgradeForcedToolChoice,
+  isAdaptiveThinkingClaude,
+  rejectsDisabledThinking,
+  rejectsSamplingParams,
+} from './model/claudeGeneration.js'
 import { getOpenAIClient } from '../services/api/openai/client.js'
 import { getGrokClient } from '../services/api/grok/client.js'
 import {
   getValidChatGPTAuth,
   isChatGPTAuthEnabled,
 } from '../services/api/openai/chatgptAuth.js'
+import {
+  getValidKimiAuth,
+  isKimiAuthEnabled,
+  resolveKimiModel,
+} from '../services/api/openai/kimiAuth.js'
+import { getClaudeCodeUserAgent } from './userAgent.js'
 import {
   fetchChatGPTModelCatalog,
   resolveChatGPTModel,
@@ -248,15 +260,28 @@ export async function sideQuery(opts: SideQueryOptions): Promise<BetaMessage> {
         : []),
   ].filter((block): block is TextBlockParam => block !== null)
 
+  // Newer Claude models changed the request rules: no thinking budget, on
+  // some no way to disable thinking, no sampling params, no forced tool use.
+  const lowerModel = model.toLowerCase()
   let thinkingConfig: BetaThinkingConfigParam | undefined
   if (thinking === false) {
-    thinkingConfig = { type: 'disabled' }
-  } else if (thinking !== undefined) {
-    thinkingConfig = {
-      type: 'enabled',
-      budget_tokens: Math.min(thinking, max_tokens - 1),
+    if (!rejectsDisabledThinking(lowerModel)) {
+      thinkingConfig = { type: 'disabled' }
     }
+  } else if (thinking !== undefined) {
+    thinkingConfig = isAdaptiveThinkingClaude(lowerModel)
+      ? { type: 'adaptive' }
+      : {
+          type: 'enabled',
+          budget_tokens: Math.min(thinking, max_tokens - 1),
+        }
   }
+  const forcedTool = downgradeForcedToolChoice(model, tool_choice)
+  if (forcedTool.instruction) {
+    systemBlocks.push({ type: 'text', text: forcedTool.instruction })
+  }
+  const sendTemperature =
+    temperature !== undefined && !rejectsSamplingParams(lowerModel)
 
   const normalizedModel = normalizeModelStringForAPI(model)
   const start = Date.now()
@@ -303,9 +328,9 @@ export async function sideQuery(opts: SideQueryOptions): Promise<BetaMessage> {
         system: systemBlocks,
         messages,
         ...(tools && { tools }),
-        ...(tool_choice && { tool_choice }),
+        ...(forcedTool.toolChoice && { tool_choice: forcedTool.toolChoice }),
         ...(output_format && { output_config: { format: output_format } }),
-        ...(temperature !== undefined && { temperature }),
+        ...(sendTemperature && { temperature }),
         ...(stop_sequences && { stop_sequences }),
         ...(thinkingConfig && { thinking: thinkingConfig }),
         ...(betas.length > 0 && { betas }),
@@ -671,8 +696,14 @@ async function sideQueryViaOpenAICompatible(
   const normalizedModel = normalizeModelStringForAPI(model)
 
   // Resolve model name per provider
-  const openaiModel =
-    provider === 'grok'
+  // Kimi subscription: its own token, host and model, like the main query.
+  const kimiAuth =
+    provider === 'openai' && isKimiAuthEnabled()
+      ? await getValidKimiAuth(signal)
+      : undefined
+  const openaiModel = kimiAuth
+    ? resolveKimiModel(normalizedModel)
+    : provider === 'grok'
       ? resolveGrokModel(normalizedModel)
       : resolveOpenAIModel(normalizedModel)
 
@@ -714,7 +745,14 @@ async function sideQueryViaOpenAICompatible(
   const client: import('openai').default =
     provider === 'grok'
       ? getGrokClient({ maxRetries: opts.maxRetries ?? 2 })
-      : getOpenAIClient({ maxRetries: opts.maxRetries ?? 2 })
+      : getOpenAIClient({
+          maxRetries: opts.maxRetries ?? 2,
+          ...(kimiAuth && {
+            apiKey: kimiAuth.accessToken,
+            baseURL: kimiAuth.baseURL,
+            defaultHeaders: { 'User-Agent': getClaudeCodeUserAgent() },
+          }),
+        })
 
   const start = Date.now()
 
@@ -724,7 +762,7 @@ async function sideQueryViaOpenAICompatible(
     max_tokens,
   }
   const promptCacheKey =
-    provider === 'openai'
+    provider === 'openai' && !kimiAuth
       ? getOfficialOpenAIPromptCacheKey(
           process.env.OPENAI_BASE_URL,
           getSessionId(),

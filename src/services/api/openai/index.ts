@@ -647,7 +647,7 @@ export async function* queryModelOpenAI(
             addToTotalSessionCost(
               costUSD,
               usage as unknown as BetaUsage,
-              useChatGPTResponses ? openaiModel : options.model,
+              useChatGPTResponses || kimiAuth ? openaiModel : options.model,
             )
           }
           break

@@ -21,7 +21,7 @@ import {
 } from '../context.js'
 import { isEnvTruthy } from '../envUtils.js'
 import { getModelStrings, resolveOverriddenModel } from './modelStrings.js'
-import { formatModelPricing, getOpus46CostTier } from '../modelCost.js'
+import { formatModelPricing, getCurrentOpusCostTier } from '../modelCost.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import type { PermissionMode } from '../permissions/PermissionMode.js'
 import { getAPIProvider, isFirstPartyAnthropicBaseUrl } from './providers.js'
@@ -34,6 +34,7 @@ import {
   isChatGPTAuthMode,
   resolveChatGPTCodexModelForTier,
 } from './chatgptModels.js'
+import { KIMI_DEFAULT_MODEL } from '../../services/api/openai/kimiAuth.js'
 
 export type ModelShortName = string
 export type ModelName = string
@@ -51,6 +52,11 @@ function getOpenAIModelForTier(
   tier: ChatGPTCodexModelTier,
 ): ModelName | undefined {
   if (provider !== 'openai') return undefined
+  // Kimi serves one coding model for every tier. Resolve it here so the UI,
+  // usage records and requests all name the model that actually runs.
+  if (process.env.OPENAI_AUTH_MODE === 'kimi') {
+    return process.env.KIMI_MODEL || KIMI_DEFAULT_MODEL
+  }
 
   return resolveChatGPTCodexModelForTier({
     tier,
@@ -87,7 +93,10 @@ export function isNonCustomOpusModel(model: ModelName): boolean {
     model === getModelStrings().opus41 ||
     model === getModelStrings().opus45 ||
     model === getModelStrings().opus46 ||
-    model === getModelStrings().opus47
+    model === getModelStrings().opus47 ||
+    model === getModelStrings().opus48 ||
+    model === getModelStrings().opus5 ||
+    model === getModelStrings().opus55
   )
 }
 
@@ -178,10 +187,11 @@ export function getDefaultOpusModel(): ModelName {
   // when the user configured a third-party provider.
   const primaryModel = getProviderPrimaryModel()
   if (primaryModel) return primaryModel
+  // 3P platforms can lag a launch, so they stay on the last widely deployed Opus.
   if (provider !== 'firstParty') {
     return getModelStrings().opus47
   }
-  return getModelStrings().opus47
+  return getModelStrings().opus55
 }
 
 // @[MODEL LAUNCH]: Update the default Sonnet model (3P providers may lag so keep defaults unchanged).
@@ -205,7 +215,7 @@ export function getDefaultSonnetModel(): ModelName {
   if (provider !== 'firstParty') {
     return getModelStrings().sonnet45
   }
-  return getModelStrings().sonnet46
+  return getModelStrings().sonnet55
 }
 
 // @[MODEL LAUNCH]: Update the default Haiku model (3P providers may lag so keep defaults unchanged).
@@ -226,8 +236,11 @@ export function getDefaultHaikuModel(): ModelName {
   const primaryModel = getProviderPrimaryModel()
   if (primaryModel) return primaryModel
 
-  // Haiku 4.5 is available on all platforms (first-party, Foundry, Bedrock, Vertex)
-  return getModelStrings().haiku45
+  // Haiku 4.5 is available on all platforms (Foundry, Bedrock, Vertex)
+  if (provider !== 'firstParty') {
+    return getModelStrings().haiku45
+  }
+  return getModelStrings().haiku55
 }
 
 /**
@@ -316,8 +329,19 @@ export function getDefaultMainLoopModel(): ModelName {
  */
 export function firstPartyNameToCanonical(name: ModelName): ModelShortName {
   name = name.toLowerCase()
+  // Claude 5 families and Fable/Mythos: 'claude-<family>-<major>[-<minor>]',
+  // no date suffix. A 1-2 digit minor keeps a point release distinct.
+  const modern = name.match(
+    /claude-(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:-\d{1,2})?(?!\d)/,
+  )
+  if (modern) {
+    return modern[0]
+  }
   // Special cases for Claude 4+ models to differentiate versions
   // Order matters: check more specific versions first (4-5 before 4)
+  if (name.includes('claude-opus-4-8')) {
+    return 'claude-opus-4-8'
+  }
   if (name.includes('claude-opus-4-7')) {
     return 'claude-opus-4-7'
   }
@@ -391,30 +415,35 @@ export function getClaudeAiUserDefaultModelDescription(
 ): string {
   if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
     if (isOpus1mMergeEnabled()) {
-      return `Opus 4.7 with 1M context · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`
+      return `Opus 5.5 with 1M context · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`
     }
-    return `Opus 4.7 · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`
+    return `Opus 5.5 · Most capable for complex work${fastMode ? getOpusPricingSuffix(true) : ''}`
   }
-  return 'Sonnet 4.6 · Best for everyday tasks'
+  return 'Sonnet 5.5 · Best for everyday tasks'
 }
 
 export function renderDefaultModelSetting(
   setting: ModelName | ModelAlias,
 ): string {
   if (setting === 'opusplan') {
-    return 'Opus 4.7 in plan mode, else Sonnet 4.6'
+    return 'Opus 5.5 in plan mode, else Sonnet 5.5'
   }
   return renderModelName(parseUserSpecifiedModel(setting))
 }
 
 export function getOpusPricingSuffix(fastMode: boolean): string {
   if (getAPIProvider() !== 'firstParty') return ''
-  const pricing = formatModelPricing(getOpus46CostTier(fastMode))
+  const pricing = formatModelPricing(getCurrentOpusCostTier(fastMode))
   const fastModeIndicator = fastMode ? ` (${LIGHTNING_BOLT})` : ''
   return ` ·${fastModeIndicator} ${pricing}`
 }
 
 export function isOpus1mMergeEnabled(): boolean {
+  // ponytail: the first-party Opus (5.5) has a 1M window by default, so there
+  // is no separate 1M variant to merge. Delete the callers when convenient.
+  if (getAPIProvider() === 'firstParty') {
+    return false
+  }
   if (
     is1mContextDisabled() ||
     isProSubscriber() ||
@@ -452,6 +481,30 @@ export function renderModelSetting(setting: ModelName | ModelAlias): string {
  */
 export function getPublicModelDisplayName(model: ModelName): string | null {
   switch (model) {
+    case getModelStrings().fable52:
+      return 'Fable 5.2'
+    case getModelStrings().fable51:
+      return 'Fable 5.1'
+    case getModelStrings().fable5:
+      return 'Fable 5'
+    case getModelStrings().opus55:
+    case getModelStrings().opus55 + '[1m]':
+      return 'Opus 5.5'
+    case getModelStrings().opus5:
+    case getModelStrings().opus5 + '[1m]':
+      return 'Opus 5'
+    case getModelStrings().opus48:
+      return 'Opus 4.8'
+    case getModelStrings().opus48 + '[1m]':
+      return 'Opus 4.8 (1M context)'
+    case getModelStrings().sonnet55:
+    case getModelStrings().sonnet55 + '[1m]':
+      return 'Sonnet 5.5'
+    case getModelStrings().sonnet5:
+    case getModelStrings().sonnet5 + '[1m]':
+      return 'Sonnet 5'
+    case getModelStrings().haiku55:
+      return 'Haiku 5.5'
     case getModelStrings().opus47:
       return 'Opus 4.7'
     case getModelStrings().opus47 + '[1m]':
@@ -571,6 +624,8 @@ export function parseUserSpecifiedModel(
         return getDefaultHaikuModel() + (has1mTag ? '[1m]' : '')
       case 'opus':
         return getDefaultOpusModel() + (has1mTag ? '[1m]' : '')
+      case 'fable':
+        return getModelStrings().fable52
       case 'best':
         return getBestModel()
       default:
@@ -685,6 +740,16 @@ export function getMarketingNameForModel(modelId: string): string | undefined {
   const has1m = modelId.toLowerCase().includes('[1m]')
   const canonical = getCanonicalName(modelId)
 
+  const modern = canonical.match(
+    /^claude-(opus|sonnet|haiku|fable|mythos)-(\d)(?:-(\d{1,2}))?$/,
+  )
+  if (modern) {
+    const [, family, major, minor] = modern
+    return `${capitalize(family!)} ${major}${minor ? `.${minor}` : ''}`
+  }
+  if (canonical.includes('claude-opus-4-8')) {
+    return has1m ? 'Opus 4.8 (with 1M context)' : 'Opus 4.8'
+  }
   if (canonical.includes('claude-opus-4-7')) {
     return has1m ? 'Opus 4.7 (with 1M context)' : 'Opus 4.7'
   }

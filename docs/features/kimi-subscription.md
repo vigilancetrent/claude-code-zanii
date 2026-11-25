@@ -8,13 +8,25 @@ Use a Kimi Code (Moonshot) subscription instead of an API key.
 claude auth login --kimi
 ```
 
+For an overseas Kimi account, select the global region:
+
+```sh
+ccz auth login --kimi --kimi-region global
+```
+
+The default is `cn`. `--kimi-region` overrides `KIMI_REGION`; the environment
+variable also applies to the interactive `/login` flow. The selected region is
+saved with the credentials and reused for inference and token refresh. Existing
+credentials without a region continue to use `cn`.
+
 Or run `/login` and choose **Continue with Kimi**. The CLI prints a
-`kimi.com/code/authorize_device` link and a short user code; approving it in the
-browser completes sign-in.
+`kimi.com/code/authorize_device` or `kimi.ai/code/authorize_device` link for
+the selected region and a short user code; approving it in the browser completes
+sign-in.
 
 Sign-in uses Kimi's RFC 8628 device-code flow against `https://auth.kimi.com`
-with Kimi's public Kimi Code client id. There is no ID token, so no identity
-verification — the access token is the credential.
+or `https://auth.kimi.ai`, with Kimi's public Kimi Code client id. There is no
+ID token, so no identity verification — the access token is the credential.
 
 ## What gets configured
 
@@ -25,7 +37,7 @@ verification — the access token is the credential.
 ```
 
 Inference then goes through the existing OpenAI Chat Completions path to
-`https://api.kimi.com/coding/v1` with:
+`https://api.kimi.com/coding/v1` or `https://api.kimi.ai/coding/v1` with:
 
 - `max_completion_tokens` instead of `max_tokens` (Kimi shares the budget with
   `reasoning_content`)
@@ -62,6 +74,7 @@ endpoint, so revoke the device in your Kimi account if you need remote sign-out.
 | --- | --- |
 | `KIMI_CODE_BASE_URL` | Override the managed endpoint |
 | `KIMI_MODEL` | Default model for Claude-style tier names |
+| `KIMI_REGION` | Login region: `cn` (default) or `global`; saved credentials retain their own region |
 
 ## Limits
 

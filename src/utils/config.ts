@@ -43,6 +43,7 @@ const ccrAutoConnect = feature('CCR_AUTO_CONNECT')
 /* eslint-enable @typescript-eslint/no-require-imports */
 import type { ImageDimensions } from './imageResizer.js'
 import type { ModelOption } from './model/modelOptions.js'
+import type { ChatGPTCodexModelOption } from './model/chatgptModels.js'
 import { jsonParse, jsonStringify } from './slowOperations.js'
 
 // Re-entrancy guard: prevents getConfig → logEvent → getGlobalConfig → getConfig
@@ -348,6 +349,9 @@ export type GlobalConfig = {
   voiceLangHintShownCount?: number // Number of times the /voice dictation-language hint has been shown
   voiceLangHintLastLanguage?: string // Resolved STT language code when the hint was last shown — reset count when it changes
   voiceFooterHintSeenCount?: number // Number of sessions the "hold X to speak" footer hint has been shown
+
+  // Last ChatGPT account model catalog, so model limits are known at startup
+  chatgptModelCatalog?: ChatGPTCodexModelOption[]
 
   // Opus 1M merge notice tracking
   opus1mMergeNoticeSeenCount?: number // Number of times the opus-1m-merge notice has been shown

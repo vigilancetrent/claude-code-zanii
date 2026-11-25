@@ -1,5 +1,116 @@
 # Production readiness report
 
+## CCZ 2.14.9: Kimi region release review (2026-10-30)
+
+Base: `477658214d4f43c78703e297ba004cc70bf51d90`; the earlier report below
+is preserved as it exists at that commit. Scope: pending Kimi region changes,
+their CLI wiring, regression coverage, documentation, and the npm artifact.
+No service, database, queue, or inference parser was added or changed.
+
+Architecture: `--kimi-region` / `KIMI_REGION` selects a fixed OAuth host;
+the encrypted credential stores the region; inference and refresh use that saved
+region even if the environment subsequently changes. Old credentials use `cn`.
+Scaling remains one OS user and a shared credential file, protected by the
+existing cross-process lease. External Kimi availability and the local OS account
+remain failure domains. There is no hosted-service availability promise.
+
+Threat model: untrusted CLI/environment values, device authorization responses,
+verification URLs, and stored JSON cross trust boundaries. Region values are
+allowlisted; credential writes validate the complete record; authentication uses
+fixed HTTPS hosts with redirects rejected. Verification URLs must be HTTPS under
+`kimi.com` or `kimi.ai`. Spoofed verification hosts and cancellation are covered
+by tests. Access/refresh tokens are sensitive; region is not an account identity.
+Tokens are never included in the release logs. Local file read and OS credential
+protection permissions are required. This review uses synthetic credentials and
+does not establish live provider admission or remote revocation.
+
+Evidence directory: `tasks/verification/release-2.14.9/`.
+Focused run: **63 passed, zero failed, 120 assertions** (`kimi-tests.log`).
+TypeScript passed (`typecheck.log`); changed-file Biome checks and source lint
+passed (`source-lint.log`, 2,474 files). Whole-repository lint exited zero but
+reported an invalid-UTF-8 diagnostic for an older untracked verification file;
+the scoped source check has no such diagnostic. The build produced 1,330 output
+files (`build.log`). The exact tarball passed metadata, path, supplied-token
+exclusion and executable smoke checks (`package-check.json`).
+The full isolated suite result is pending; do not interpret the scoped passes
+as a full-suite pass.
+
+Dependency audit: `bun audit --json` completed with findings (`audit.json`):
+47 packages, 242 advisory entries (24 low, 126 moderate, 90 high, two critical).
+These are raw audit entries, not 242 individually confirmed reachable exploits.
+The critical entries name `proxy-addr` 2.0.7 (IP trust subnet handling) and
+`shell-quote` 1.8.3 (newline handling in operator objects). Both versions and the
+dependency manifest were already present at the base commit; no dependencies
+were changed in this patch. Reachability and safe upgrades have not been
+established. The release must not be described as vulnerability-free.
+
+All 47 rows were evaluated for this scoped delta. Unchanged service/data/parser
+rows retain the prior evidence and limitations below, as stored at the base
+commit; none of its synthetic capacity numbers are Kimi capacity measurements.
+Rows touching authentication (2, 3, 4, 21, 42), region configuration and local
+credential lifecycle were reviewed again. Result: **18 PASS / 21 N/A / 8 GAP**.
+
+| # | Status | Delta evidence or inherited applicability |
+|---|---|---|
+| 1 | PASS | Local-user scaling and failure domains described above; no hosted tier added. |
+| 2 | PASS | `kimiAuth.ts` device/token schemas and encrypted storage; region login and refresh tests; password/MFA delegated to Kimi. Live acceptance remains row 4. |
+| 3 | PASS | `kimiLogin.ts` and `activateKimiSubscription` preserve managed-policy/host restrictions; region selection grants no resource privileges. |
+| 4 | GAP | Synthetic expiry/rotation tests pass; real consent, inference and remote revocation remain unverified. |
+| 5 | N/A | No inbound product API or collection endpoint. |
+| 6 | N/A | No public listener or shared subscription proxy; Kimi enforces its own quota. |
+| 7 | PASS | Invalid-region test rejects before network access; strict stored-region schema; built CLI rejects region without Kimi mode. |
+| 8 | PASS | Schema-validated device/token responses and bounded readJSON; verification-host regression passes. Inference output path unchanged. |
+| 9 | GAP | Exact supplied token and sensitive-path archive scans pass; dedicated repository/history secret scanner unavailable. |
+| 10 | PASS | Actual Windows DPAPI save/read/refresh operations pass in the focused suite; fixed HTTPS OAuth hosts. |
+| 11 | N/A | No database. |
+| 12 | N/A | No database growth or partitioning. |
+| 13 | PASS | Existing model-cache policy unchanged; region does not introduce a cache. |
+| 14 | N/A | Interactive CLI operations, no durable queue. |
+| 15 | PASS | Existing proper-lockfile lease (60-second stale, 10-second update, bounded acquisition) retained; concurrent refresh test passes. |
+| 16 | N/A | No payment/order/webhook writes or automatic inference replay. |
+| 17 | N/A | One credential document, atomically replaced; no multi-record transaction. |
+| 18 | PASS | Three concurrent global refresh requests perform exactly one rotation and preserve the saved region. |
+| 19 | PASS | KimiAuthError classification retained; invalid region and cancellation fail before outbound calls. |
+| 20 | GAP | Terminal diagnostics exist; uniform structured authentication correlation logs remain absent. |
+| 21 | N/A | No shared administration, regulated operation, or role hierarchy added. |
+| 22 | N/A | No deployed endpoint fleet. |
+| 23 | N/A | No supervised service or load balancer. |
+| 24 | N/A | No owned production service or on-call routing. |
+| 25 | N/A | No owned distributed topology introduced. |
+| 26 | PASS | Prior measured parser envelope retained; region lookup does not change the parser. |
+| 27 | PASS | Prior synthetic parser load evidence retained, with its recorded limits. No load was sent to Kimi. |
+| 28 | N/A | User-operated local process with the prior measured local headroom; no replica controller. |
+| 29 | N/A | No served web assets or cacheable public routes. |
+| 30 | N/A | No upload or object-storage service. Credentials intentionally belong to the local OS account. |
+| 31 | N/A | No broker/webhook delivery. |
+| 32 | PASS | Existing bounded refresh retry retained; device polling respects authorization_pending/slow_down. Original pending-poll regression passes. |
+| 33 | N/A | No owned-service cascade or shared worker fleet. Required provider failures stop the individual CLI request. |
+| 34 | PASS | Existing 30-second network timeout, bounded login deadline and lock retries retained; pre-request abort regression passes. |
+| 35 | N/A | Kimi is the required dependency for the selected subscription; no billing/provider fallback is introduced. |
+| 36 | N/A | Best-effort user-operated local CLI; process/provider interruption ends current work. |
+| 37 | GAP | No timed local-state backup/restore rehearsal. |
+| 38 | GAP | Build and archive smoke pass; full-suite result pending and rollback not rehearsed. |
+| 39 | N/A | CLI replaced between invocations; no live request fleet or schema migration. |
+| 40 | GAP | Audit completed with 242 advisory entries including two critical; upgrades/reachability not established. |
+| 41 | GAP | Adversarial region tests and dependency audit ran; dedicated SAST and live account security acceptance remain missing. |
+| 42 | PASS | Fixed HTTPS OAuth routing, redirect rejection and spoofed verification-host test; no SQL/cookie/browser-rendering surface introduced. |
+| 43 | PASS | Region is the only new stored field; existing token protection/removal retained; archive credential exclusion verified. |
+| 44 | N/A | One OS user's local account state; no shared tenant data store. |
+| 45 | PASS | CLI > environment > historical cn default; saved region overrides later environment changes, verified by tests. |
+| 46 | PASS | `docs/features/kimi-subscription.md` documents region selection, persistence and legacy compatibility. |
+| 47 | GAP | Prior local parser ceiling is 128 synthetic concurrent streams, first tested breach 256; Kimi quota/cost/capacity and billing controls unmeasured. |
+
+Release rollback: reinstall the previous published version with
+`npm install -g claude-code-zanii@2.14.8`. This command is documented, not rehearsed;
+the previous version cannot read new region-bearing credentials, so sign in again
+after rollback rather than editing encrypted credential files.
+
+Outstanding GAPs are rows 4, 9, 20, 37, 38, 40, 41 and 47. No risk acceptance
+is inferred for new audit findings. This system is not cleared to ship until
+the GAPs above are signed off or closed.
+
+---
+
 **System:** Zanii native ChatGPT subscription client. **Scope:** first full review of the local, single-account auth/inference path and the source/setup repairs needed to build it. **Date:** 2026-10-24. **Commit:** unavailable; this source snapshot has no `.git`. **Prior report:** none.
 
 **Result:** `17 PASS / 21 N/A / 9 GAP`. The latest 249 scoped tests, strict typecheck, lint and primary build passed. The earlier broad isolated suite exited 1 with 6,062 passed, 60 failed and five errors; this is not release clearance. A PASS below means the scoped local behavior has concrete evidence, not that a real ChatGPT account or upstream capacity has been verified. Hosted-service requirements are N/A only where the local CLI has no corresponding service surface. See [the actual change inventory](chatgpt-subscription-changes.md) for application, baseline-repair and verification file scope.

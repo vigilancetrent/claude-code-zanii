@@ -47,8 +47,16 @@ export async function* streamGeminiGenerateContent(params: {
 
   if (!response.ok) {
     const body = await response.text()
+    // Show the API's own message, not the raw JSON envelope.
+    let detail = body.slice(0, 200) || 'empty response body'
+    try {
+      const message = JSON.parse(body)?.error?.message
+      if (typeof message === 'string' && message) detail = message
+    } catch {
+      // Not JSON: keep the truncated body.
+    }
     throw new Error(
-      `Gemini API request failed (${response.status} ${response.statusText}): ${body || 'empty response body'}`,
+      `Gemini API request failed (${response.status} ${response.statusText}): ${detail}`,
     )
   }
 

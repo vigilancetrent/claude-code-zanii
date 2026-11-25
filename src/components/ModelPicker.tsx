@@ -77,6 +77,8 @@ export function ModelPicker({
   const exitState = useExitOnCtrlCDWithKeybindings();
   const maxVisible = 10;
   const chatgpt = getAPIProvider() === 'openai' && isChatGPTAuthMode();
+  // The [1m] toggle only means something for Claude models.
+  const nonClaude = ['openai', 'gemini', 'grok'].includes(getAPIProvider());
   const [catalogVersion, setCatalogVersion] = useState(0);
   const [catalogError, setCatalogError] = useState<string | null>(null);
   const [catalogLoading, setCatalogLoading] = useState(chatgpt);
@@ -268,7 +270,9 @@ export function ModelPicker({
             {headerText ??
               (chatgpt
                 ? 'Choose a model from your ChatGPT account catalog. Access is checked on each request.'
-                : 'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context.')}
+                : nonClaude
+                  ? 'Choose a model for this and future sessions.'
+                  : 'Choose a model for this and future sessions. Use ← → to adjust effort, Space to toggle 1M context.')}
           </Text>
           {catalogLoading && <Text dimColor>Loading ChatGPT models…</Text>}
           {catalogError && <Text color="error">{catalogError}</Text>}
@@ -316,7 +320,7 @@ export function ModelPicker({
               {focusedModelName ? ` for ${focusedModelName}` : ''}
             </Text>
           )}
-          {chatgpt ? null : is1MMarked ? (
+          {nonClaude ? null : is1MMarked ? (
             <Text dimColor>
               <EffortLevelIndicator effort={'high'} /> 1M context on
               <Text color="subtle"> · Space to toggle</Text>

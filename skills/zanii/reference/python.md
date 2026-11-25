@@ -2,7 +2,9 @@
 
 Package (PyPI): `zanii` **0.27.0 or later** (`pip install "zanii>=0.27"`; Python 3.10+; `zanii.__version__`
 reports the installed version). The Regulator Hub submodules - `zanii.regulator`,
-`zanii.jurisdiction` and the rest listed below - need **0.28.0**: `pip install "zanii>=0.28"`. Submodules: `zanii.core` (pure verify), `zanii.runtime` (rails),
+`zanii.jurisdiction` and the rest listed below - need **0.28.0**: `pip install "zanii>=0.28"`. Threat signatures in
+`zanii.status_feed` need **0.29.0**; role CVs and league tables in `zanii.cv` (`create_role_roster`, `build_role_cv`,
+`firm_stats`, `league_table`) need **0.31.0**. Submodules: `zanii.core` (pure verify), `zanii.runtime` (rails),
 `zanii.aio` (asyncio client), `zanii.errors` (typed errors), `zanii.durable` / `zanii.sql_journal` /
 `zanii.journal_testkit` (receipt journals), `zanii.mcp_proxy` (needs `pip install "zanii[mcp]"`). Ships `py.typed`.
 Ecosystem modules (every optional npm package with a Python use, same bytes as TypeScript wherever

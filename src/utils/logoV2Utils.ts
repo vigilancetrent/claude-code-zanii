@@ -255,7 +255,11 @@ export function getLogoDisplayData(): {
     : displayPath
   const billingType = isClaudeAISubscriber()
     ? getSubscriptionName()
-    : 'API Usage Billing'
+    : process.env.OPENAI_AUTH_MODE === 'chatgpt'
+      ? 'ChatGPT plan'
+      : process.env.OPENAI_AUTH_MODE === 'kimi'
+        ? 'Kimi Code plan'
+        : 'API Usage Billing'
   const agentName = getInitialSettings().agent
 
   return {

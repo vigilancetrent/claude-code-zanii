@@ -54,6 +54,11 @@ function resolveDefaultOpusModelForTests(): string {
 // model.ts hangs the test process due to heavy transitive deps.
 function realFirstPartyNameToCanonical(name: string): string {
   name = name.toLowerCase()
+  const modern = name.match(
+    /claude-(?:opus|sonnet|haiku|fable|mythos)-[5-9](?:-\d{1,2})?(?!\d)/,
+  )
+  if (modern) return modern[0]
+  if (name.includes('claude-opus-4-8')) return 'claude-opus-4-8'
   if (name.includes('claude-opus-4-7')) return 'claude-opus-4-7'
   if (name.includes('claude-opus-4-6')) return 'claude-opus-4-6'
   if (name.includes('claude-opus-4-5')) return 'claude-opus-4-5'

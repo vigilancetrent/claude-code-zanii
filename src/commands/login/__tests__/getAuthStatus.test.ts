@@ -8,10 +8,13 @@ import { logMock } from '../../../../tests/mocks/log'
 import { debugMock } from '../../../../tests/mocks/debug'
 
 // Mock side-effect modules before importing subject
+// Spread the real module so a partial mock cannot break other test files.
+const realSettings = await import('src/utils/settings/settings.js')
 mock.module('src/utils/log.ts', logMock)
 mock.module('src/utils/debug.ts', debugMock)
 mock.module('bun:bundle', () => ({ feature: () => false }))
 mock.module('src/utils/settings/settings.js', () => ({
+  ...realSettings,
   getInitialSettings: () => ({}),
   getCachedOrDefaultSettings: () => ({}),
   getSettings: () => ({}),

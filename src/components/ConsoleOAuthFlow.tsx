@@ -11,7 +11,7 @@ import { getSSLErrorHint } from '@ant/model-provider';
 import { sendNotification } from '../services/notifier.js';
 import { startChatGPTLogin } from '../services/api/openai/chatgptAuth.js';
 import { activateChatGPTSubscription } from '../services/api/openai/chatgptActivation.js';
-import { activateKimiSubscription, startKimiLogin } from '../services/api/openai/kimiAuth.js';
+import { activateKimiSubscription, type KimiRegion, startKimiLogin } from '../services/api/openai/kimiAuth.js';
 import { clearChatGPTModelCatalog, fetchChatGPTModelCatalog } from '../services/api/openai/chatgptModels.js';
 import { CHATGPT_USAGE_URL } from '../utils/model/chatgptModels.js';
 import { getGlobalConfig, saveGlobalConfig } from '../utils/config.js';
@@ -62,6 +62,7 @@ type OAuthStatus =
   | {
       state: 'kimi_subscription';
       phase: 'requesting' | 'waiting';
+      region?: KimiRegion;
       verificationUrl?: string;
       userCode?: string;
     }
@@ -171,11 +172,12 @@ export function ConsoleOAuthFlow({
 
   useEffect(() => {
     if (oauthStatus.state !== 'kimi_subscription') return;
+    const region = oauthStatus.region;
     const controller = new AbortController();
     let cancelLogin: (() => void) | undefined;
     async function runLogin() {
       try {
-        const login = await startKimiLogin(controller.signal);
+        const login = await startKimiLogin(controller.signal, region);
         cancelLogin = login.cancel;
         if (controller.signal.aborted) {
           login.cancel();
@@ -184,6 +186,7 @@ export function ConsoleOAuthFlow({
         setOAuthStatus({
           state: 'kimi_subscription',
           phase: 'waiting',
+          region,
           verificationUrl: login.verificationUriComplete,
           userCode: login.userCode,
         });
@@ -198,7 +201,7 @@ export function ConsoleOAuthFlow({
         setOAuthStatus({
           state: 'error',
           message: error instanceof Error ? error.message : 'Kimi sign-in failed. Please try again.',
-          toRetry: { state: 'kimi_subscription', phase: 'requesting' },
+          toRetry: { state: 'kimi_subscription', phase: 'requesting', region },
         });
       }
     }
@@ -378,11 +381,6 @@ export function ConsoleOAuthFlow({
         if (!orgResult.valid) {
           throw new Error((orgResult as { valid: false; message: string }).message);
         }
-        // Reset modelType to anthropic when using OAuth login
-        updateSettingsForSource('userSettings', { modelType: 'anthropic' } as unknown as Parameters<
-          typeof updateSettingsForSource
-        >[1]);
-
         setOAuthStatus({ state: 'success' });
         void sendNotification(
           {
@@ -585,11 +583,20 @@ function OAuthStatusMessage({
                 {
                   label: (
                     <Text>
-                      Continue with Kimi · <Text dimColor>Use your Kimi Code subscription</Text>
+                      Continue with Kimi · <Text dimColor>Kimi Code subscription, China (kimi.com)</Text>
                       {'\n'}
                     </Text>
                   ),
                   value: 'kimi_subscription',
+                },
+                {
+                  label: (
+                    <Text>
+                      Continue with Kimi International · <Text dimColor>Kimi Code subscription (kimi.ai)</Text>
+                      {'\n'}
+                    </Text>
+                  ),
+                  value: 'kimi_subscription_global',
                 },
                 {
                   label: (
@@ -670,11 +677,13 @@ function OAuthStatusMessage({
                     state: 'chatgpt_subscription',
                     phase: 'requesting',
                   });
-                } else if (value === 'kimi_subscription') {
+                } else if (value === 'kimi_subscription' || value === 'kimi_subscription_global') {
                   logEvent('tengu_kimi_subscription_selected', {});
                   setOAuthStatus({
                     state: 'kimi_subscription',
                     phase: 'requesting',
+                    // China keeps honouring KIMI_REGION; the second row forces kimi.ai.
+                    region: value === 'kimi_subscription_global' ? 'global' : undefined,
                   });
                 } else if (value === 'gemini_api') {
                   logEvent('tengu_gemini_api_selected', {});

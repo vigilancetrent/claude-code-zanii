@@ -371,6 +371,7 @@ mock.module('../../../../utils/modelCost.js', () => ({
   COST_HAIKU_35: {},
   COST_HAIKU_45: {},
   getOpus46CostTier: () => ({}),
+  getCurrentOpusCostTier: () => ({}),
   MODEL_COSTS: {},
   getModelCosts: () => ({}),
   calculateUSDCost: () => 123,

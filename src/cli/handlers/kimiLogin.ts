@@ -2,6 +2,7 @@ import {
   KimiActivationError,
   KimiAuthError,
   activateKimiSubscription,
+  resolveKimiRegion,
   startKimiLogin,
   type KimiLogin,
 } from '../../services/api/openai/kimiAuth.js'
@@ -16,6 +17,8 @@ export type KimiLoginOptions = {
   sso?: boolean
   console?: boolean
   claudeai?: boolean
+  /** "cn" (platform.kimi.com) or "global" (platform.kimi.ai). */
+  region?: string
 }
 
 function authRecovery(error: unknown): string {
@@ -77,6 +80,17 @@ export async function authLoginKimi(
     return
   }
 
+  let region: ReturnType<typeof resolveKimiRegion>
+  try {
+    region = resolveKimiRegion(options.region)
+  } catch (error) {
+    process.stderr.write(
+      `Error: ${error instanceof Error ? error.message : 'Invalid Kimi region.'}\n`,
+    )
+    process.exitCode = 1
+    return
+  }
+
   const controller = new AbortController()
   let login: KimiLogin | undefined
   let interrupted: 'SIGINT' | 'SIGTERM' | undefined
@@ -97,9 +111,9 @@ export async function authLoginKimi(
   process.on('SIGTERM', onTerminate)
   try {
     process.stdout.write(
-      'Continue with Kimi\nUse your Kimi Code subscription. Requests count against your Kimi plan limits; model access is checked by Kimi.\n',
+      `Continue with Kimi (${region === 'global' ? 'Global · platform.kimi.ai' : 'China · platform.kimi.com'})\nUse your Kimi Code subscription. Requests count against your Kimi plan limits; model access is checked by Kimi.\n`,
     )
-    login = await startKimiLogin(controller.signal)
+    login = await startKimiLogin(controller.signal, region)
     controller.signal.throwIfAborted()
     process.stdout.write(
       `Open this link in your browser and approve the code ${login.userCode}:\n${login.verificationUriComplete}\n`,

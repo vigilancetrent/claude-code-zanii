@@ -25,6 +25,7 @@ import { isClaudeAISubscriber } from './auth.js'
 import { has1mContext } from './context.js'
 import { isEnvTruthy } from './envUtils.js'
 import { getCanonicalName } from './model/model.js'
+import { isClaude5Generation } from './model/claudeGeneration.js'
 import { get3PModelCapabilityOverride } from './model/modelSupportOverrides.js'
 import {
   getAPIProvider,
@@ -153,6 +154,8 @@ export function modelSupportsStructuredOutputs(model: string): boolean {
     canonical.includes('claude-opus-4-5') ||
     canonical.includes('claude-opus-4-6') ||
     canonical.includes('claude-opus-4-7') ||
+    canonical.includes('claude-opus-4-8') ||
+    isClaude5Generation(canonical) ||
     canonical.includes('claude-haiku-4-5')
   )
 }
@@ -219,7 +222,8 @@ export const getAllModelBetas = memoize((model: string): string[] => {
   if (isClaudeAISubscriber()) {
     betaHeaders.push(OAUTH_BETA_HEADER)
   }
-  if (has1mContext(model)) {
+  // Claude 5 models have a 1M window by default and take no opt-in header.
+  if (has1mContext(model) && !isClaude5Generation(getCanonicalName(model))) {
     betaHeaders.push(CONTEXT_1M_BETA_HEADER)
   }
   if (

@@ -87,7 +87,10 @@ mock.module('src/services/api/openai/client.ts', () => ({
   clearOpenAIClientCache: clearClient,
 }))
 mock.module('src/utils/browser.ts', () => ({ openBrowser: browser }))
-mock.module('src/utils/config.ts', () => ({ saveGlobalConfig: saveConfig }))
+mock.module('src/utils/config.ts', () => ({
+  saveGlobalConfig: saveConfig,
+  getGlobalConfig: () => ({}),
+}))
 mock.module('src/utils/settings/settings.ts', () => ({
   getInitialSettings: () => {
     if (settingsReadFailure) throw settingsReadFailure

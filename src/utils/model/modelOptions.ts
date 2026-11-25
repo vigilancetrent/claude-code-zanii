@@ -11,7 +11,12 @@ import {
   COST_TIER_3_15,
   COST_HAIKU_35,
   COST_HAIKU_45,
+  COST_FABLE_52,
+  COST_OPUS_55,
+  COST_SONNET_55,
+  COST_HAIKU_55,
   formatModelPricing,
+  type ModelCosts,
 } from '../modelCost.js'
 import { getSettings_DEPRECATED } from '../settings/settings.js'
 import { checkOpus1mAccess, checkSonnet1mAccess } from './check1mAccess.js'
@@ -71,7 +76,7 @@ export function getDefaultOptionForUser(fastMode = false): ModelOption {
   return {
     value: null,
     label: 'Default (recommended)',
-    description: `Use the default model (currently ${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})${is3P ? '' : ` · ${formatModelPricing(COST_TIER_3_15)}`}`,
+    description: `Use the default model (currently ${renderDefaultModelSetting(getDefaultMainLoopModelSetting())})${is3P ? '' : ` · ${formatModelPricing(COST_SONNET_55)}`}`,
   }
 }
 
@@ -333,7 +338,7 @@ function getOpusPlanOption(): ModelOption {
   return {
     value: 'opusplan',
     label: 'Opus Plan Mode',
-    description: 'Use Opus 4.7 in plan mode, Sonnet 4.6 otherwise',
+    description: 'Use Opus 5.5 in plan mode, Sonnet 5.5 otherwise',
   }
 }
 
@@ -354,6 +359,50 @@ function getChatGPTCodexModelOptions(): ModelOption[] {
       descriptionForModel: `${model.description} (${model.value})`,
     })),
   ]
+}
+
+function getClaude5Options(): ModelOption[] {
+  // Subscribers pay a flat plan, so per-token prices would mislead them.
+  const price = (costs: ModelCosts) =>
+    isClaudeAISubscriber() ? '' : ` · ${formatModelPricing(costs)}`
+  return [
+    {
+      value: 'fable',
+      label: 'Fable 5.2',
+      description: `Fable 5.2 · Most capable, for the hardest work${price(COST_FABLE_52)}`,
+      descriptionForModel:
+        'Fable 5.2 - most capable model, for the hardest and longest tasks',
+    },
+    {
+      value: 'opus',
+      label: 'Opus 5.5',
+      description: `Opus 5.5 · Most capable for complex work${price(COST_OPUS_55)}`,
+      descriptionForModel: 'Opus 5.5 - most capable for complex work',
+    },
+    {
+      value: 'sonnet',
+      label: 'Sonnet 5.5',
+      description: `Sonnet 5.5 · Best for everyday tasks${price(COST_SONNET_55)}`,
+      descriptionForModel:
+        'Sonnet 5.5 - best for everyday tasks. Generally recommended for most coding tasks',
+    },
+    {
+      value: 'haiku',
+      label: 'Haiku 5.5',
+      description: `Haiku 5.5 · Fastest for quick answers${price(COST_HAIKU_55)}`,
+      descriptionForModel:
+        'Haiku 5.5 - fastest for quick answers. Lower cost but less capable than Sonnet 5.5.',
+    },
+  ]
+}
+
+function getOpus47LegacyOption(): ModelOption {
+  return {
+    value: getModelStrings().opus47,
+    label: 'Opus 4.7',
+    description: 'Opus 4.7 · Previous generation Opus',
+    descriptionForModel: 'Opus 4.7 - previous generation Opus model',
+  }
 }
 
 // @[MODEL LAUNCH]: Update the model picker lists below to include/reorder options for the new model.
@@ -381,62 +430,34 @@ function getModelOptionsBase(fastMode = false): ModelOption[] {
     return getChatGPTCodexModelOptions()
   }
 
-  if (isClaudeAISubscriber()) {
-    if (isMaxSubscriber() || isTeamPremiumSubscriber()) {
-      // Max and Team Premium users: Default = Opus 4.7 1M (merged), plus Opus 4.6 1M
-      const premiumOptions = [getDefaultOptionForUser(fastMode)]
-      premiumOptions.push(getOpus46_1MOption(fastMode))
-
-      premiumOptions.push(MaxSonnet46Option)
-      if (checkSonnet1mAccess()) {
-        premiumOptions.push(getMaxSonnet46_1MOption())
-      }
-
-      premiumOptions.push(MaxHaiku45Option)
-      return premiumOptions
-    }
-
-    // Pro/Team Standard/Enterprise users: Sonnet is default, show Opus 4.7 1M + Opus 4.6 1M
-    const standardOptions = [getDefaultOptionForUser(fastMode)]
-
-    if (isOpus1mMergeEnabled()) {
-      standardOptions.push(getMergedOpus1MOption(fastMode))
-    } else {
-      standardOptions.push(getMaxOpusOption(fastMode))
-      if (checkOpus1mAccess()) {
-        standardOptions.push(getMaxOpus47_1MOption(fastMode))
-      }
-    }
-    standardOptions.push(getOpus46_1MOption(fastMode))
-
-    if (checkSonnet1mAccess()) {
-      standardOptions.push(getMaxSonnet46_1MOption())
-    }
-
-    standardOptions.push(MaxHaiku45Option)
-    return standardOptions
-  }
-
-  // PAYG 1P API: Default (Sonnet) + Opus 4.7 1M + Opus 4.6 1M + Sonnet 1M + Haiku
+  // First-party (subscribers and API keys): one list for the current
+  // generation. Every model here has a 1M window, so there are no [1m] rows.
   if (getAPIProvider() === 'firstParty') {
-    const payg1POptions = [getDefaultOptionForUser(fastMode)]
-    if (isOpus1mMergeEnabled()) {
-      payg1POptions.push(getMergedOpus1MOption(fastMode))
-    } else {
-      payg1POptions.push(getOpus47Option(fastMode))
-      if (checkOpus1mAccess()) {
-        payg1POptions.push(getOpus47_1MOption(fastMode))
-      }
-    }
-    payg1POptions.push(getOpus46_1MOption(fastMode))
-    if (checkSonnet1mAccess()) {
-      payg1POptions.push(getSonnet46_1MOption())
-    }
-    payg1POptions.push(getHaiku45Option())
-    return payg1POptions
+    const defaultAlias =
+      getDefaultMainLoopModelSetting() === getDefaultOpusModel()
+        ? 'opus'
+        : 'sonnet'
+    return [
+      getDefaultOptionForUser(fastMode),
+      ...getClaude5Options().filter(option => option.value !== defaultAlias),
+      getOpus47LegacyOption(),
+    ]
   }
 
   // PAYG 3P: Default (Sonnet 4.5) + Sonnet (3P custom) or Sonnet 4.6/1M + Opus (3P custom) or Opus 4.7/Opus 4.6 Legacy/Opus 4.7 1M + Haiku
+  // OpenAI-compatible, Gemini and Grok endpoints do not serve Claude models.
+  // Offer the default plus any tier the user mapped by env var; models the
+  // server lists are appended in getModelOptions.
+  const provider = getAPIProvider()
+  if (provider === 'openai' || provider === 'gemini' || provider === 'grok') {
+    return [
+      getDefaultOptionForUser(fastMode),
+      getCustomSonnetOption(),
+      getCustomOpusOption(),
+      getCustomHaikuOption(),
+    ].filter((option): option is ModelOption => option !== undefined)
+  }
+
   const payg3pOptions = [getDefaultOptionForUser(fastMode)]
 
   const customSonnet = getCustomSonnetOption()
@@ -481,6 +502,7 @@ function getModelFamilyInfo(
 
   // Sonnet family
   if (
+    canonical.includes('claude-sonnet-5') ||
     canonical.includes('claude-sonnet-4-6') ||
     canonical.includes('claude-sonnet-4-5') ||
     canonical.includes('claude-sonnet-4-') ||
@@ -494,7 +516,10 @@ function getModelFamilyInfo(
   }
 
   // Opus family
-  if (canonical.includes('claude-opus-4')) {
+  if (
+    canonical.includes('claude-opus-4') ||
+    canonical.includes('claude-opus-5')
+  ) {
     const currentName = getMarketingNameForModel(getDefaultOpusModel())
     if (currentName) {
       return { alias: 'Opus', currentVersionName: currentName }
@@ -570,7 +595,9 @@ export function getModelOptions(fastMode = false): ModelOption[] {
 
   // Append additional model options fetched during bootstrap
   const additionalOptions =
-    getAPIProvider() === 'openai' && isChatGPTAuthMode()
+    // Subscription sign-ins (ChatGPT, Kimi) have their own catalog; the cache
+    // may hold another endpoint's models from an earlier setup.
+    getAPIProvider() === 'openai' && process.env.OPENAI_AUTH_MODE
       ? []
       : (getGlobalConfig().additionalModelOptionsCache ?? [])
   for (const opt of additionalOptions) {

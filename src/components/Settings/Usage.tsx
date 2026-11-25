@@ -1,10 +1,10 @@
 import * as React from 'react';
 import { useEffect, useState } from 'react';
 import { extraUsage as extraUsageCommand } from 'src/commands/extra-usage/index.js';
-import { formatCost } from 'src/cost-tracker.js';
-import { getSubscriptionType } from 'src/utils/auth.js';
+import { formatCost, formatTotalCost } from 'src/cost-tracker.js';
+import { getSubscriptionType, isClaudeAISubscriber } from 'src/utils/auth.js';
 import { useTerminalSize } from '../../hooks/useTerminalSize.js';
-import { Box, Link, Text } from '@anthropic/ink';
+import { Ansi, Box, Link, Text } from '@anthropic/ink';
 import { getAPIProvider } from '../../utils/model/providers.js';
 import { CHATGPT_USAGE_URL, isChatGPTAuthMode } from '../../utils/model/chatgptModels.js';
 import { useKeybinding } from '../../keybindings/useKeybinding.js';
@@ -98,11 +98,26 @@ export function Usage(): React.ReactNode {
         </Text>
         <Text>Token counts are measured locally; API dollar estimates do not apply to subscription requests.</Text>
         <Link url={CHATGPT_USAGE_URL}>Manage usage</Link>
-        <Text dimColor>Run /cost for session token usage or /login to change the connection.</Text>
+        <SessionTotals />
+        <Text dimColor>Run /login to change the connection.</Text>
       </Box>
     );
   }
+  // API keys and other providers have no plan limits to chart, so show what
+  // this session used instead of an empty panel.
+  if (!isClaudeAISubscriber()) {
+    return <SessionTotals />;
+  }
   return <AnthropicUsage />;
+}
+
+function SessionTotals(): React.ReactNode {
+  return (
+    <Box flexDirection="column">
+      <Text bold>This session</Text>
+      <Ansi>{formatTotalCost()}</Ansi>
+    </Box>
+  );
 }
 
 function AnthropicUsage(): React.ReactNode {

@@ -38,7 +38,10 @@ import {
   getAPIProvider,
   isThirdPartyAPIProvider,
 } from '../../utils/model/providers.js'
-import { getInitialSettings } from '../../utils/settings/settings.js'
+import {
+  getInitialSettings,
+  updateSettingsForSource,
+} from '../../utils/settings/settings.js'
 import {
   getChatGPTAuthStatus,
   isChatGPTAuthEnabled,
@@ -57,9 +60,37 @@ import {
  * Shared post-token-acquisition logic. Saves tokens, fetches profile/roles,
  * and sets up the local auth state.
  */
-export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
+const PROVIDER_SWITCH_ENV = [
+  'CLAUDE_CODE_USE_OPENAI',
+  'CLAUDE_CODE_USE_GEMINI',
+  'CLAUDE_CODE_USE_GROK',
+] as const
+
+/**
+ * Returns a note for the user when a provider switch was set in the
+ * environment, since a shell export would bring the other provider back.
+ */
+export async function installOAuthTokens(
+  tokens: OAuthTokens,
+): Promise<string | undefined> {
+  const leftover = PROVIDER_SWITCH_ENV.filter(key => process.env[key])
   // Clear old state before saving new credentials
   await performLogout({ clearOnboarding: false })
+
+  // A ChatGPT or Kimi login leaves modelType 'openai' and the auth mode in
+  // user settings. Without this reset the CLI reports a successful Anthropic
+  // login and keeps sending requests to the other provider.
+  // The same goes for a provider switch saved in user settings. A switch
+  // exported in the shell is the user's own choice and comes back next start;
+  // `ccz auth login` prints a note about it.
+  updateSettingsForSource('userSettings', {
+    modelType: 'anthropic',
+    env: Object.fromEntries(
+      ['OPENAI_AUTH_MODE', ...PROVIDER_SWITCH_ENV].map(key => [key, undefined]),
+    ),
+  } as unknown as Parameters<typeof updateSettingsForSource>[1])
+  delete process.env.OPENAI_AUTH_MODE
+  for (const key of PROVIDER_SWITCH_ENV) delete process.env[key]
 
   // Reuse pre-fetched profile if available, otherwise fetch fresh
   const profile =
@@ -117,6 +148,9 @@ export async function installOAuthTokens(tokens: OAuthTokens): Promise<void> {
   }
 
   await clearAuthRelatedCaches()
+  return leftover.length > 0
+    ? `Note: ${leftover.join(', ')} was set for this session. If your shell profile exports it, remove it there, or new sessions will use that provider instead of your Anthropic login.`
+    : undefined
 }
 
 export async function authLogin({
@@ -126,6 +160,7 @@ export async function authLogin({
   claudeai,
   chatgpt,
   kimi,
+  kimiRegion,
 }: {
   email?: string
   sso?: boolean
@@ -133,7 +168,12 @@ export async function authLogin({
   claudeai?: boolean
   chatgpt?: boolean
   kimi?: boolean
+  kimiRegion?: string
 }): Promise<void> {
+  if (kimiRegion !== undefined && !kimi) {
+    process.stderr.write('Error: --kimi-region requires --kimi.\n')
+    process.exit(1)
+  }
   if (chatgpt && kimi) {
     process.stderr.write(
       'Error: --chatgpt and --kimi cannot be used together.\n',
@@ -147,7 +187,13 @@ export async function authLogin({
   }
   if (kimi) {
     const { authLoginKimi } = await import('./kimiLogin.js')
-    await authLoginKimi({ email, sso, console: useConsole, claudeai })
+    await authLoginKimi({
+      email,
+      sso,
+      console: useConsole,
+      claudeai,
+      region: kimiRegion,
+    })
     process.exit(process.exitCode ?? 0)
   }
   if (useConsole && claudeai) {
@@ -185,7 +231,8 @@ export async function authLogin({
       logEvent('tengu_login_from_refresh_token', {})
 
       const tokens = await refreshOAuthToken(envRefreshToken, { scopes })
-      await installOAuthTokens(tokens)
+      const note = await installOAuthTokens(tokens)
+      if (note) process.stderr.write(note + '\n')
 
       const orgResult = await validateForceLoginOrg()
       if (!orgResult.valid) {
@@ -237,7 +284,8 @@ export async function authLogin({
       },
     )
 
-    await installOAuthTokens(result)
+    const note = await installOAuthTokens(result)
+    if (note) process.stderr.write(note + '\n')
 
     const orgResult = await validateForceLoginOrg()
     if (!orgResult.valid) {

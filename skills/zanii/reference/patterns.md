@@ -113,7 +113,9 @@
   flush + check the submit results — a fire-and-forget queue defeats the whole point). And the
   broker removes the agent's *need* for credentials; it cannot remove credentials the operator
   left in the agent's env — deploy it as a separate process AND delete the raw keys. Allow-list
-  entries are origins + path prefixes, required and non-empty; never grant `*`.
+  entries are origins + path prefixes, required and non-empty; never grant `*`. Confirm the receipt
+  **by its hash**: `SubmitResult` has `status` (`accepted` / `duplicate` / `rejected`), not `ok`, and
+  with concurrent calls one `flush()` can ship another call's receipt, so check for your own hash.
 - **`@zanii/vc`: bridge the format, never claim the trust model.** A VC from `toVC` proves what
   the Zanii credential proved — `verifyVC` checks the proof and (only with explicit `at`) the
   window; it does NOT check revocation or resolve the issuer's domain. Acceptance still needs
@@ -138,6 +140,11 @@
   `verifyCV` even warns when the list exceeds `summary.receipts`. A CV proves its entries are real, not
   that nothing was left out. And `verifyCV` is offline/structural — to verify the underlying history,
   follow `summary.audit_bundle` (`verifyAuditBundle`) or `resolveAndVerify`.
+- **Role CVs: never rank an incomplete CV.** `buildRoleCV` says `complete: false` (with `problems`) when an instance
+  is missing, a chain is broken or behind the Ledger head; rank only complete ones, and remember unknown outcomes
+  count against the success rate. Without outcome receipts there is no success rate to prove.
+- **Threat signatures are plain text.** Never turn a `contains:` signature into a regular expression, and never
+  publish one built from a customer's call arguments: candidates leave a firm as target patterns only.
 
 ## 0.6.0 / 0.27.0 patterns
 

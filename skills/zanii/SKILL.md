@@ -20,7 +20,8 @@ payload, so business data never leaves the caller's systems.
 
 Written for **`@zanii/sdk` 0.6.0 or later** (`@zanii/runtime` 0.4.0, `@zanii/cli` 0.3.0) and
 **`zanii` 0.27.0 or later** (PyPI), released 2026-10-29 — but the **Regulator Hub** modules
-below need **`zanii` 0.28.0**, so `pip install "zanii>=0.28"` if a task touches those. Install
+below need **`zanii` 0.28.0**, so `pip install "zanii>=0.28"` if a task touches those; threat signatures in
+`zanii.status_feed` need **0.29.0**, and role CVs and league tables in `zanii.cv` need **0.31.0**. Install
 `npm i @zanii/sdk@^0.6.0` and `pip install "zanii>=0.27"`: under 0.x semver an existing `^0.5.x`
 range never picks up 0.6.
 
@@ -39,7 +40,7 @@ range never picks up 0.6.
 | **Trust UI** — client-side verifying React components | `@zanii/react` | *(JS only)* |
 
 More optional packages, all **published** (the npm registry has the per-package versions).
-Each one also ships in Python as `zanii.<name>` (`zanii` 0.28.0 for the Regulator Hub modules below, 0.27.0 for the rest; same bytes as TypeScript wherever it
+Each one also ships in Python as `zanii.<name>` (`zanii` 0.28.0 for the Regulator Hub modules below, 0.29.0 for threat signatures, 0.31.0 for role CVs, 0.27.0 for the rest; same bytes as TypeScript wherever it
 signs or hashes); see `reference/ecosystem.md` for signatures:
 
 | Need | npm |

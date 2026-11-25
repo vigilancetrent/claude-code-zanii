@@ -1,5 +1,28 @@
 # ChatGPT subscription integration
 
+## CCZ 2.14.9 npm release (2026-10-30)
+
+Authorization: user requested a new release and supplied `secrets/npm_key.txt`.
+Publish the reviewed tarball to npm; no Git push is authorized.
+
+Investigation: reference paths are `src/cli/handlers/chatgptLogin.ts`,
+`src/cli/handlers/kimiLogin.ts`, and `src/components/ConsoleOAuthFlow.tsx`.
+Stack: Bun, strict TypeScript, Commander, Zod, Biome. Existing Kimi region changes
+were present before this task; finish their CLI wiring without changing the
+historical `cn` default or stored-credential compatibility. Version is sourced
+from package.json by scripts/defines.ts. npm latest was verified as 2.14.8.
+
+- [x] Investigate existing edits, callers, release workflow and latest npm version.
+- [x] Bump package.json; wire --kimi-region in main.tsx/auth.ts; document the option.
+- [x] Extend kimiAuth.test.ts for region routing, refresh, invalid input and compatibility.
+- [ ] Self-review; run focused tests, typecheck, lint, full tests and dependency audit.
+- [ ] Update docs/readiness-report.md with scoped evidence and explicit limitations.
+- [ ] Build, pack, inspect secret exclusion, and smoke-test the exact tarball.
+- [x] Install the verified 2.14.9 tarball globally on this PC; both installed launchers report 2.14.9.
+- [ ] Publish 2.14.9 with the supplied credential and verify remote version/integrity.
+
+Review: pending. Verification artifacts go in tasks/verification/release-2.14.9/.
+
 ## Build and npm publication
 
 User explicitly requested publication and supplied a local npm-key file. Target is the existing `claude-code-zanii` package on `https://registry.npmjs.org/`; prepare the next minor version, 2.13.0, for the added subscription feature. Registry version availability and publisher access could not be verified: npm is offline, and automatic approval rejected authenticated registry access. No token was read or printed by that rejected command. Do not bypass this restriction.
@@ -180,3 +203,16 @@ Behaviour change to note: subagents may now spawn subagents (3 layers, like upst
 Known pre-existing failure on Windows: `udsMessaging.test.ts › drainInbox returns each pending socket message once` (fails on clean tree too).
 
 Follow-ups: `/design*`, `claude plugin eval`, `SubagentHandback`, `WaitForMcpServers`, `experimental.cacheTtl`, cloud-only items remain out of scope.
+
+## 2026-11-25: 2.14.9: Claude 5 models, sign-in fixes, provider and UI fixes
+
+State: released as 2.14.9 together with the Kimi region work. See git log and npm for the commit and publish.
+
+- **Models:** added Fable 5 / 5.1 / 5.2, Opus 4.8 / 5 / 5.5, Sonnet 5 / 5.5, Haiku 5.5 (`configs.ts`). First-party defaults: `opus` = Opus 5.5, `sonnet` = Sonnet 5.5, `haiku` = Haiku 5.5, new `fable` alias = Fable 5.2. Bedrock/Vertex/Foundry defaults unchanged. Capability rules live in `src/utils/model/claudeGeneration.ts` (adaptive thinking, 1M default window, no sampling params, no disabled thinking, forced `tool_choice` downgraded to `auto` plus a system instruction). `/model` on first-party is one list without `[1m]` rows. Pricing added in `modelCost.ts`.
+- **Sign-in:** `installOAuthTokens` now resets `modelType` and `OPENAI_AUTH_MODE`, so `ccz auth login` after a ChatGPT/Kimi login really switches back. A stray `OPENAI_BASE_URL` / `GEMINI_BASE_URL` no longer disables a Claude subscription login. Failure to remove ChatGPT/Kimi credentials no longer fails an Anthropic login.
+- **UI:** ChatGPT model list is saved to the global config and no longer wiped before a refresh (fixes "200K context" for `gpt-6.1-sol`, live check: 500000). Header says "Claude Code Zanii" in the condensed layout; billing label and `/status` name the ChatGPT / Kimi plan; no blank base-URL rows; Gemini errors show the API message, not raw JSON.
+- **Provider fixes (second pass):** Kimi sessions name `kimi-for-coding` in the UI and usage records, hide the effort control, route side queries (auto-mode classifier) through the Kimi token and host, and `/login` has a China row and an International row. `/model` on OpenAI-compatible, Gemini and Grok shows only the default, env-mapped tiers and the server's own list, with no 1M toggle. `/usage`, `/cost` and `/stats` show this session's totals when there is no Claude plan. Claude plan limits no longer stay frozen in the status line after a provider switch. Fast mode covers Opus 5.5 ($8 / $40). An Anthropic login also removes `CLAUDE_CODE_USE_OPENAI/GEMINI/GROK` from user settings, and `ccz auth login` prints a note when one was set in the environment.
+- **Tests:** precheck 6157 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail. `kimiAuth` tests moved to the isolated run (`kimiAuth.isolated.ts`): `autonomyPersistence.test.ts` replaces the file lock with a no-op for the whole shared process, which broke the concurrent-refresh test there. Build OK; built CLI ran a tool call on `gpt-6.1-sol` and reported a 500000 window.
+- **Not verified live:** no request was sent to Anthropic with the new models (this PC is signed in to ChatGPT), and no Kimi, Gemini or Grok account was available. The Bedrock IDs for the new models (`us.anthropic.<id>`) are a guess. Kimi's context window is still the 200K default; its real window is not known here.
+- **Opt-in, off by default:** server-side refusal fallback (`CLAUDE_CODE_REFUSAL_FALLBACK=1`) for Fable / Opus 5.x / Sonnet 5.5. Turn it on by default once it has been run against the live API.
+- **Left as is:** the 5h / 7d bars cannot be filled for other providers. ChatGPT responses carry no usage-limit headers, and OpenAI-compatible endpoints report per-minute buckets, not plan windows. The built-in status line hides the segments when there is no data.

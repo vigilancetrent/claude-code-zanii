@@ -4,6 +4,7 @@ import { getInitialSettings } from './settings/settings.js'
 import { isProSubscriber, isMaxSubscriber, isTeamSubscriber } from './auth.js'
 import { getFeatureValue_CACHED_MAY_BE_STALE } from 'src/services/analytics/growthbook.js'
 import { getAPIProvider } from './model/providers.js'
+import { isAdaptiveThinkingClaude } from './model/claudeGeneration.js'
 import { get3PModelCapabilityOverride } from './model/modelSupportOverrides.js'
 import { isEnvTruthy } from './envUtils.js'
 import type { EffortLevel } from 'src/entrypoints/sdk/runtimeTypes.js'
@@ -44,6 +45,10 @@ export function modelSupportsEffort(model: string): boolean {
   // thinkingBudget / thinking toggle), so every model there "supports" it.
   // Grok is left out: xAI rejects reasoning_effort on grok-4.
   const provider = getAPIProvider()
+  // Kimi requests never carry reasoning_effort, so do not offer the control.
+  if (provider === 'openai' && process.env.OPENAI_AUTH_MODE === 'kimi') {
+    return false
+  }
   if (provider === 'openai' || provider === 'gemini') {
     return true
   }
@@ -55,12 +60,7 @@ export function modelSupportsEffort(model: string): boolean {
     return true
   }
   // Supported by a subset of Claude 4 models
-  if (
-    m.includes('opus-4-7') ||
-    m.includes('opus-4-6') ||
-    m.includes('sonnet-4-6') ||
-    m.includes('deepseek-v4-pro')
-  ) {
+  if (isAdaptiveThinkingClaude(m) || m.includes('deepseek-v4-pro')) {
     return true
   }
   // Exclude any other known legacy models (haiku, older opus/sonnet variants)

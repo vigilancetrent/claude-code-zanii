@@ -1,3 +1,5 @@
+// Isolated: these tests need the real file lock, which another test file in
+// the shared process replaces with a no-op.
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test'
 import { mkdtemp, readFile, rm, stat, writeFile } from 'fs/promises'
 import { tmpdir } from 'os'
@@ -5,6 +7,7 @@ import { join } from 'path'
 import {
   getKimiAuthStatus,
   getValidKimiAuth,
+  resolveKimiRegion,
   startKimiLogin,
 } from '../kimiAuth.js'
 import {
@@ -19,6 +22,9 @@ const originalFetch = globalThis.fetch
 const originalConfig = process.env.CLAUDE_CONFIG_DIR
 const originalAuthMode = process.env.OPENAI_AUTH_MODE
 const originalBaseURL = process.env.KIMI_CODE_BASE_URL
+const originalRegion = process.env.KIMI_REGION
+const requests: string[] = []
+let verificationURL: string | undefined
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -40,18 +46,23 @@ beforeAll(async () => {
   process.env.CLAUDE_CONFIG_DIR = directory
   process.env.OPENAI_AUTH_MODE = 'kimi'
   delete process.env.KIMI_CODE_BASE_URL
+  delete process.env.KIMI_REGION
   globalThis.fetch = (async (
     input: string | URL | Request,
     init?: RequestInit,
   ) => {
     const url = String(input)
+    requests.push(url)
     if (url.endsWith('/api/oauth/device_authorization'))
       return json({
         device_code: 'device-1',
         user_code: 'ABCD-1234',
-        verification_uri: 'https://www.kimi.com/code/authorize_device',
+        verification_uri:
+          verificationURL ??
+          `https://www.${new URL(url).hostname.slice(5)}/code/authorize_device`,
         verification_uri_complete:
-          'https://www.kimi.com/code/authorize_device?user_code=ABCD-1234',
+          verificationURL ??
+          `https://www.${new URL(url).hostname.slice(5)}/code/authorize_device?user_code=ABCD-1234`,
         interval: 0.01,
         expires_in: 60,
       })
@@ -87,6 +98,8 @@ afterAll(async () => {
   else process.env.OPENAI_AUTH_MODE = originalAuthMode
   if (originalBaseURL === undefined) delete process.env.KIMI_CODE_BASE_URL
   else process.env.KIMI_CODE_BASE_URL = originalBaseURL
+  if (originalRegion === undefined) delete process.env.KIMI_REGION
+  else process.env.KIMI_REGION = originalRegion
   await rm(directory, { recursive: true, force: true })
 })
 
@@ -111,6 +124,9 @@ describe('kimiAuth', () => {
     const auth = await getValidKimiAuth()
     expect(auth.accessToken).toBe('access-1')
     expect(auth.baseURL).toBe('https://api.kimi.com/coding/v1')
+    expect(
+      requests.every(url => url.startsWith('https://auth.kimi.com/')),
+    ).toBe(true)
   })
 
   test('refreshes an expired token and persists the rotated grant', async () => {
@@ -127,6 +143,8 @@ describe('kimiAuth', () => {
       ),
     )
     expect(stored.refreshToken).toBe('refreshed-refresh')
+    expect(auth.baseURL).toBe('https://api.kimi.com/coding/v1')
+    expect(stored.region).toBe('cn')
   })
 
   test('clears the credential when the refresh grant is rejected', async () => {
@@ -145,5 +163,115 @@ describe('kimiAuth', () => {
       },
     )
     refreshStatus = 200
+  })
+
+  test('defaults to China and accepts explicit region aliases', () => {
+    expect(resolveKimiRegion()).toBe('cn')
+    expect(resolveKimiRegion(' GLOBAL ')).toBe('global')
+    expect(resolveKimiRegion('international')).toBe('global')
+    expect(resolveKimiRegion('china')).toBe('cn')
+  })
+
+  test('explicit region overrides the environment', () => {
+    process.env.KIMI_REGION = 'global'
+    try {
+      expect(resolveKimiRegion()).toBe('global')
+      expect(resolveKimiRegion('cn')).toBe('cn')
+    } finally {
+      delete process.env.KIMI_REGION
+    }
+  })
+
+  test('rejects an unknown environment region before making a request', async () => {
+    const requestCount = requests.length
+    process.env.KIMI_REGION = 'unknown'
+    try {
+      await expect(startKimiLogin()).rejects.toMatchObject({
+        code: 'invalid_region',
+      })
+      expect(requests.length).toBe(requestCount)
+    } finally {
+      delete process.env.KIMI_REGION
+    }
+  })
+
+  test('global sign-in stores its region and uses the global API', async () => {
+    const requestCount = requests.length
+    const login = await startKimiLogin(undefined, 'global')
+    expect(login.verificationUriComplete).toContain('www.kimi.ai/')
+    await login.complete()
+    expect(await getKimiAuthStatus()).toMatchObject({
+      loggedIn: true,
+      region: 'global',
+    })
+    expect((await getValidKimiAuth()).baseURL).toBe(
+      'https://api.kimi.ai/coding/v1',
+    )
+    expect(
+      requests
+        .slice(requestCount)
+        .every(url => url.startsWith('https://auth.kimi.ai/')),
+    ).toBe(true)
+  })
+
+  test('concurrent refresh uses the saved region and rotates only once', async () => {
+    await seed({
+      region: 'global',
+      accessToken: 'stale-access',
+      refreshToken: 'stale-refresh',
+      expiresAt: Date.now() - 1_000,
+    })
+    const requestCount = requests.length
+    const results = await Promise.all([
+      getValidKimiAuth(),
+      getValidKimiAuth(),
+      getValidKimiAuth(),
+    ])
+    expect(requests.slice(requestCount)).toEqual([
+      'https://auth.kimi.ai/api/oauth/token',
+    ])
+    expect(results.every(auth => auth.accessToken === 'refreshed-access')).toBe(
+      true,
+    )
+    expect(
+      results.every(auth => auth.baseURL === 'https://api.kimi.ai/coding/v1'),
+    ).toBe(true)
+    expect(await getKimiAuthStatus()).toMatchObject({ region: 'global' })
+  })
+
+  test('the environment does not reroute previously saved credentials', async () => {
+    process.env.KIMI_REGION = 'cn'
+    try {
+      expect((await getValidKimiAuth()).baseURL).toBe(
+        'https://api.kimi.ai/coding/v1',
+      )
+    } finally {
+      delete process.env.KIMI_REGION
+    }
+  })
+
+  test('rejects an untrusted verification host before saving credentials', async () => {
+    const previous = await readFile(join(directory, 'kimi-auth.json'), 'utf8')
+    verificationURL = 'https://kimi.ai.attacker.example/authorize'
+    try {
+      await expect(startKimiLogin(undefined, 'global')).rejects.toMatchObject({
+        code: 'invalid_response',
+      })
+      expect(await readFile(join(directory, 'kimi-auth.json'), 'utf8')).toBe(
+        previous,
+      )
+    } finally {
+      verificationURL = undefined
+    }
+  })
+
+  test('cancellation stops authorization before making a request', async () => {
+    const controller = new AbortController()
+    controller.abort()
+    const requestCount = requests.length
+    await expect(
+      startKimiLogin(controller.signal, 'global'),
+    ).rejects.toMatchObject({ code: 'cancelled' })
+    expect(requests.length).toBe(requestCount)
   })
 })

@@ -5,6 +5,10 @@ import { getFeatureValue_CACHED_MAY_BE_STALE } from '../services/analytics/growt
 import { getCanonicalName } from './model/model.js'
 import { get3PModelCapabilityOverride } from './model/modelSupportOverrides.js'
 import { getAPIProvider } from './model/providers.js'
+import {
+  isAdaptiveThinkingClaude,
+  isClaude5Generation,
+} from './model/claudeGeneration.js'
 import { getSettingsWithErrors } from './settings/settings.js'
 import { resolveAntModel } from './model/antModels.js'
 
@@ -107,7 +111,11 @@ export function modelSupportsThinking(model: string): boolean {
     return !canonical.includes('claude-3-')
   }
   // 3P (Bedrock/Vertex): only Opus 4+ and Sonnet 4+
-  return canonical.includes('sonnet-4') || canonical.includes('opus-4')
+  return (
+    canonical.includes('sonnet-4') ||
+    canonical.includes('opus-4') ||
+    isClaude5Generation(canonical)
+  )
 }
 
 // @[MODEL LAUNCH]: Add the new model to the allowlist if it supports adaptive thinking.
@@ -118,11 +126,7 @@ export function modelSupportsAdaptiveThinking(model: string): boolean {
   }
   const canonical = getCanonicalName(model)
   // Supported by a subset of Claude 4 models
-  if (
-    canonical.includes('opus-4-7') ||
-    canonical.includes('opus-4-6') ||
-    canonical.includes('sonnet-4-6')
-  ) {
+  if (isAdaptiveThinkingClaude(canonical)) {
     return true
   }
   // Exclude any other known legacy models (allowlist above catches 4-6+ variants first)

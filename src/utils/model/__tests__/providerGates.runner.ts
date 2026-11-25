@@ -145,9 +145,12 @@ describe('Anthropic auth provider gate', () => {
   }
 
   for (const envKey of ['OPENAI_BASE_URL', 'GEMINI_BASE_URL'] as const) {
-    test(`disables Anthropic auth for ${envKey}`, () => {
+    // A base URL alone does not select a provider, so it must not switch
+    // off a Claude subscription login.
+    test(`keeps Anthropic auth enabled with a stray ${envKey}`, () => {
       process.env[envKey] = 'https://provider-gates.invalid'
-      expect(isAnthropicAuthEnabled()).toBe(false)
+      process.env.CLAUDE_CODE_OAUTH_TOKEN = 'provider-gates-test-token'
+      expect(isAnthropicAuthEnabled()).toBe(true)
     })
   }
 
@@ -261,4 +264,75 @@ describe('login and logout visibility', () => {
       expect(commandNames.has('logout')).toBe(true)
     })
   }
+})
+
+describe('provider-aware model surface', () => {
+  const extraEnv = [
+    'OPENAI_AUTH_MODE',
+    'KIMI_MODEL',
+    'OPENAI_MODEL',
+    'OPENAI_DEFAULT_SONNET_MODEL',
+    'GEMINI_MODEL',
+    'GROK_MODEL',
+  ] as const
+  beforeEach(() => {
+    for (const key of extraEnv) delete process.env[key]
+  })
+  afterAll(() => {
+    for (const key of extraEnv) delete process.env[key]
+  })
+
+  test('Kimi sessions name the Kimi model and hide the effort control', async () => {
+    const { getDefaultSonnetModel, getDefaultOpusModel } = await import(
+      '../model.js'
+    )
+    const { modelSupportsEffort } = await import('../../effort.js')
+    setModelType('openai')
+    process.env.OPENAI_AUTH_MODE = 'kimi'
+    expect(getDefaultSonnetModel()).toBe('kimi-for-coding')
+    expect(getDefaultOpusModel()).toBe('kimi-for-coding')
+    expect(modelSupportsEffort('kimi-for-coding')).toBe(false)
+    process.env.KIMI_MODEL = 'kimi-custom'
+    expect(getDefaultSonnetModel()).toBe('kimi-custom')
+  })
+
+  for (const modelType of ['openai', 'gemini', 'grok'] as const) {
+    test(`/model offers no Claude rows on ${modelType}`, async () => {
+      const { getModelOptions } = await import('../modelOptions.js')
+      setModelType(modelType)
+      process.env[`${modelType.toUpperCase()}_MODEL`] = 'provider-model'
+      const rows = getModelOptions().map(
+        option => `${option.label} ${option.description}`,
+      )
+      expect(
+        rows.some(row => /Opus|Sonnet \d|Haiku \d|1M context/.test(row)),
+      ).toBe(false)
+    })
+  }
+
+  test('first-party /model lists the current Claude generation', async () => {
+    const { getModelOptions } = await import('../modelOptions.js')
+    setModelType()
+    process.env.CLAUDE_CODE_OAUTH_TOKEN = 'provider-gates-test-token'
+    const labels = getModelOptions().map(option => option.label)
+    expect(labels).toContain('Fable 5.2')
+    expect(labels).toContain('Opus 5.5')
+    expect(labels).toContain('Haiku 5.5')
+    expect(labels.some(label => label.includes('1M'))).toBe(false)
+  })
+
+  test('fast mode covers Opus 5.5 pricing', async () => {
+    const { getModelCosts, COST_OPUS_55, COST_OPUS_55_FAST } = await import(
+      '../../modelCost.js'
+    )
+    setModelType()
+    const usage = { input_tokens: 1, output_tokens: 1 } as never
+    expect(getModelCosts('claude-opus-5-5', usage)).toEqual(COST_OPUS_55)
+    expect(
+      getModelCosts('claude-opus-5-5', {
+        ...(usage as object),
+        speed: 'fast',
+      } as never),
+    ).toEqual(COST_OPUS_55_FAST)
+  })
 })

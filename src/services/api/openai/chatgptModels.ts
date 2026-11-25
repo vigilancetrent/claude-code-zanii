@@ -6,6 +6,7 @@ import {
   type ChatGPTCodexModelOption,
 } from 'src/utils/model/chatgptModels.js'
 import type { ChatGPTAuth } from './chatgptAuth.js'
+import { getGlobalConfig, saveGlobalConfig } from 'src/utils/config.js'
 
 const CATALOG_TTL_MS = 5 * 60 * 1000
 const CATALOG_MAX_BYTES = 1024 * 1024
@@ -45,6 +46,16 @@ export function clearChatGPTModelCatalog(): void {
   expiresAt = 0
   generation += 1
   setChatGPTModelCatalog([])
+  saveCatalog(undefined)
+}
+
+function saveCatalog(models: ChatGPTCodexModelOption[] | undefined): void {
+  try {
+    if (!models && !getGlobalConfig().chatgptModelCatalog) return
+    saveGlobalConfig(current => ({ ...current, chatgptModelCatalog: models }))
+  } catch {
+    // The saved copy is only a startup hint; the fetch stays authoritative.
+  }
 }
 
 export async function fetchChatGPTModelCatalog(
@@ -56,8 +67,12 @@ export async function fetchChatGPTModelCatalog(
   if (cachedAccount === auth.accountKey && expiresAt > Date.now()) {
     return getChatGPTModelCatalog()
   }
-  // Clear before fetching so a failed account switch cannot retain another catalog.
-  clearChatGPTModelCatalog()
+  // Another account's catalog must not survive a switch. For the same account
+  // keep the old one until the new one arrives, so limits do not drop to the
+  // fallback during a refresh or after a failed one.
+  if (cachedAccount !== undefined && cachedAccount !== auth.accountKey) {
+    clearChatGPTModelCatalog()
+  }
   const requestGeneration = generation
   const timeout = AbortSignal.timeout(10_000)
   const requestSignal = signal ? AbortSignal.any([signal, timeout]) : timeout
@@ -128,6 +143,7 @@ export async function fetchChatGPTModelCatalog(
     cachedAccount = auth.accountKey
     expiresAt = Date.now() + CATALOG_TTL_MS
     setChatGPTModelCatalog(options)
+    saveCatalog(options)
   }
   return options
 }

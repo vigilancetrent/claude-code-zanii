@@ -30,7 +30,6 @@ import {
   unprotectChatGPTCredentials,
 } from './chatgptStorage.js'
 
-const OAUTH_HOST = 'https://auth.kimi.com'
 const CLIENT_ID = '17e5f671-d194-4dfb-9706-5516cb48c098'
 const AUTH_FILE = 'kimi-auth.json'
 const NETWORK_TIMEOUT_MS = 30_000
@@ -39,8 +38,22 @@ const MAX_JSON_BYTES = 1024 * 1024
 const DEFAULT_POLL_SECONDS = 5
 const DEFAULT_LOGIN_TIMEOUT_SECONDS = 15 * 60
 
-/** Managed Kimi Code endpoint (OpenAI Chat Completions compatible). */
-export const KIMI_CODE_BASE_URL = 'https://api.kimi.com/coding/v1'
+/**
+ * Kimi Code runs two independent stacks — mainland China (kimi.com) and the
+ * rest of the world (kimi.ai). An account and its tokens belong to one of
+ * them, so the region picked at sign-in decides both hosts.
+ */
+export type KimiRegion = 'cn' | 'global'
+const REGIONS: Record<KimiRegion, { oauthHost: string; baseURL: string }> = {
+  cn: {
+    oauthHost: 'https://auth.kimi.com',
+    baseURL: 'https://api.kimi.com/coding/v1',
+  },
+  global: {
+    oauthHost: 'https://auth.kimi.ai',
+    baseURL: 'https://api.kimi.ai/coding/v1',
+  },
+}
 /** Canonical Kimi Code model id; the service aliases it to the current model. */
 export const KIMI_DEFAULT_MODEL = 'kimi-for-coding'
 
@@ -54,6 +67,8 @@ const stateSchema = z
     accessToken: tokenString,
     refreshToken: tokenString,
     expiresAt: z.number().finite().positive(),
+    // Absent in credentials written before regions existed; those are all cn.
+    region: z.enum(['cn', 'global']).optional(),
   })
   .strict()
 type StoredState = z.infer<typeof stateSchema>
@@ -80,6 +95,7 @@ export type KimiAuth = {
 export type KimiAuthStatus = {
   loggedIn: boolean
   expiresAt?: number
+  region?: KimiRegion
 }
 
 export type KimiLogin = {
@@ -123,8 +139,24 @@ export function isKimiAuthEnabled(): boolean {
   return process.env.OPENAI_AUTH_MODE === 'kimi'
 }
 
-export function kimiBaseURL(): string {
-  return (process.env.KIMI_CODE_BASE_URL || KIMI_CODE_BASE_URL).replace(
+/**
+ * Resolve the Kimi stack to sign in to. An explicit value wins, then
+ * `KIMI_REGION`, then mainland China (the historical default).
+ */
+export function resolveKimiRegion(value?: string): KimiRegion {
+  const raw = (value ?? process.env.KIMI_REGION ?? '').trim().toLowerCase()
+  if (!raw) return 'cn'
+  if (raw === 'global' || raw === 'intl' || raw === 'international')
+    return 'global'
+  if (raw === 'cn' || raw === 'china' || raw === 'mainland') return 'cn'
+  throw new KimiAuthError(
+    `Unknown Kimi region "${raw}". Use "cn" (platform.kimi.com) or "global" (platform.kimi.ai).`,
+    'invalid_region',
+  )
+}
+
+export function kimiBaseURL(region: KimiRegion = 'cn'): string {
+  return (process.env.KIMI_CODE_BASE_URL || REGIONS[region].baseURL).replace(
     /\/+$/,
     '',
   )
@@ -313,9 +345,14 @@ function safeVerificationURL(value: string): string {
       'invalid_response',
     )
   }
+  const isKimiHost = (host: string, domain: string) =>
+    host === domain || host.endsWith(`.${domain}`)
   if (
     url.protocol !== 'https:' ||
-    !(url.hostname === 'kimi.com' || url.hostname.endsWith('.kimi.com'))
+    !(
+      isKimiHost(url.hostname, 'kimi.com') ||
+      isKimiHost(url.hostname, 'kimi.ai')
+    )
   )
     throw new KimiAuthError(
       'Kimi returned an unexpected sign-in host.',
@@ -345,12 +382,13 @@ function tokensFromResponse(
 }
 
 async function refreshAccessToken(
+  oauthHost: string,
   refreshToken: string,
   signal?: AbortSignal,
-): Promise<Omit<StoredState, 'version'>> {
+): Promise<Omit<StoredState, 'version' | 'region'>> {
   for (let attempt = 0; ; attempt++) {
     const response = await request(
-      `${OAUTH_HOST}/api/oauth/token`,
+      `${oauthHost}/api/oauth/token`,
       {
         method: 'POST',
         headers: {
@@ -393,10 +431,14 @@ async function refreshAccessToken(
   }
 }
 
-export async function startKimiLogin(signal?: AbortSignal): Promise<KimiLogin> {
+export async function startKimiLogin(
+  signal?: AbortSignal,
+  region: KimiRegion = resolveKimiRegion(),
+): Promise<KimiLogin> {
   throwIfAborted(signal)
+  const { oauthHost } = REGIONS[region]
   const response = await request(
-    `${OAUTH_HOST}/api/oauth/device_authorization`,
+    `${oauthHost}/api/oauth/device_authorization`,
     {
       method: 'POST',
       headers: {
@@ -452,7 +494,7 @@ export async function startKimiLogin(signal?: AbortSignal): Promise<KimiLogin> {
               'expired_token',
             )
           const poll = await request(
-            `${OAUTH_HOST}/api/oauth/token`,
+            `${oauthHost}/api/oauth/token`,
             {
               method: 'POST',
               headers: {
@@ -471,7 +513,11 @@ export async function startKimiLogin(signal?: AbortSignal): Promise<KimiLogin> {
           if (poll.ok) {
             const tokens = tokensFromResponse(data)
             return await withLock(async () => {
-              await saveState(authFilePath(), { version: 1, ...tokens })
+              await saveState(authFilePath(), {
+                version: 1,
+                region,
+                ...tokens,
+              })
               return { loggedIn: true, expiresAt: tokens.expiresAt }
             })
           }
@@ -519,7 +565,11 @@ export async function startKimiLogin(signal?: AbortSignal): Promise<KimiLogin> {
 export async function getKimiAuthStatus(): Promise<KimiAuthStatus> {
   const state = await readState(authFilePath())
   return state
-    ? { loggedIn: true, expiresAt: state.expiresAt }
+    ? {
+        loggedIn: true,
+        expiresAt: state.expiresAt,
+        region: state.region ?? 'cn',
+      }
     : { loggedIn: false }
 }
 
@@ -535,11 +585,16 @@ export async function getValidKimiAuth(
         'Kimi is not connected to this app. Run /login and choose Continue with Kimi.',
         'not_logged_in',
       )
+    const region = state.region ?? 'cn'
     if (state.expiresAt <= Date.now() + REFRESH_SKEW_MS) {
       try {
-        const tokens = await refreshAccessToken(state.refreshToken, signal)
-        await saveState(path, { version: 1, ...tokens })
-        return { accessToken: tokens.accessToken, baseURL: kimiBaseURL() }
+        const tokens = await refreshAccessToken(
+          REGIONS[region].oauthHost,
+          state.refreshToken,
+          signal,
+        )
+        await saveState(path, { version: 1, region, ...tokens })
+        return { accessToken: tokens.accessToken, baseURL: kimiBaseURL(region) }
       } catch (error) {
         if (error instanceof KimiAuthError && error.code === 'token_expired') {
           await clearState(path)
@@ -547,7 +602,7 @@ export async function getValidKimiAuth(
         throw error
       }
     }
-    return { accessToken: state.accessToken, baseURL: kimiBaseURL() }
+    return { accessToken: state.accessToken, baseURL: kimiBaseURL(region) }
   })
 }
 

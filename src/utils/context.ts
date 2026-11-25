@@ -4,6 +4,7 @@ import { CONTEXT_1M_BETA_HEADER } from '../constants/betas.js'
 import { getGlobalConfig } from './config.js'
 import { isEnvTruthy } from './envUtils.js'
 import { getCanonicalName } from './model/model.js'
+import { isClaude5Generation } from './model/claudeGeneration.js'
 import { resolveAntModel } from './model/antModels.js'
 import {
   CHATGPT_CODEX_MAX_OUTPUT_TOKENS,
@@ -56,7 +57,9 @@ export function modelSupports1M(model: string): boolean {
   return (
     canonical.includes('claude-sonnet-4') ||
     canonical.includes('opus-4-6') ||
-    canonical.includes('opus-4-7')
+    canonical.includes('opus-4-7') ||
+    canonical.includes('opus-4-8') ||
+    isClaude5Generation(canonical)
   )
 }
 
@@ -119,6 +122,10 @@ export function getContextWindowForModel(
   }
 
   if (betas?.includes(CONTEXT_1M_BETA_HEADER) && modelSupports1M(model)) {
+    return 1_000_000
+  }
+  // Claude 5 families: 1M is the default window, no [1m] opt-in or beta header.
+  if (!is1mContextDisabled() && isClaude5Generation(getCanonicalName(model))) {
     return 1_000_000
   }
   if (getSonnet1mExpTreatmentEnabled(model)) {
@@ -217,8 +224,12 @@ export function getModelMaxOutputTokens(model: string): {
   } else if (getChatGPTModelContextWindow(model) !== undefined) {
     defaultTokens = 32_000
     upperLimit = CHATGPT_CODEX_MAX_OUTPUT_TOKENS
-  } else if (m.includes('opus-4-7')) {
-    defaultTokens = 64_000
+  } else if (
+    m.includes('opus-4-7') ||
+    m.includes('opus-4-8') ||
+    isClaude5Generation(m)
+  ) {
+    defaultTokens = m.includes('haiku') ? 32_000 : 64_000
     upperLimit = 128_000
   } else if (m.includes('opus-4-6')) {
     defaultTokens = 64_000

@@ -300,7 +300,12 @@ export function buildAPIProviderProperties(): Property[] {
       foundry: 'Microsoft Foundry',
       gemini: 'Gemini API',
       grok: 'Grok API',
-      openai: 'OpenAI API',
+      openai:
+        process.env.OPENAI_AUTH_MODE === 'chatgpt'
+          ? 'ChatGPT plan'
+          : process.env.OPENAI_AUTH_MODE === 'kimi'
+            ? 'Kimi Code'
+            : 'OpenAI API',
     }[apiProvider];
     properties.push({
       label: 'API provider',
@@ -391,17 +396,23 @@ export function buildAPIProviderProperties(): Property[] {
       value: geminiBaseUrl,
     });
   } else if (apiProvider === 'grok') {
+    // No row when unset: an empty value renders as a dangling label.
     const grokBaseUrl = process.env.GROK_BASE_URL;
-    properties.push({
-      label: 'Grok base URL',
-      value: grokBaseUrl,
-    });
+    if (grokBaseUrl) {
+      properties.push({
+        label: 'Grok base URL',
+        value: grokBaseUrl,
+      });
+    }
   } else if (apiProvider === 'openai') {
-    const openaiBaseUrl = process.env.OPENAI_BASE_URL;
-    properties.push({
-      label: 'OpenAI base URL',
-      value: openaiBaseUrl,
-    });
+    // Subscription sign-ins use a fixed host, so a saved base URL is stale.
+    const openaiBaseUrl = process.env.OPENAI_AUTH_MODE ? undefined : process.env.OPENAI_BASE_URL;
+    if (openaiBaseUrl) {
+      properties.push({
+        label: 'OpenAI base URL',
+        value: openaiBaseUrl,
+      });
+    }
   }
 
   const proxyUrl = getProxyUrl();

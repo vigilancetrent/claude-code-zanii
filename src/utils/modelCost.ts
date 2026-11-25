@@ -88,6 +88,74 @@ export const COST_HAIKU_45 = {
   webSearchRequests: 0.01,
 } as const satisfies ModelCosts
 
+// Opus 5.5: $4 input / $20 output per Mtok
+export const COST_OPUS_55 = {
+  inputTokens: 4,
+  outputTokens: 20,
+  promptCacheWriteTokens: 5,
+  promptCacheReadTokens: 0.2,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Sonnet 5: $2 input / $10 output per Mtok
+export const COST_SONNET_5 = {
+  inputTokens: 2,
+  outputTokens: 10,
+  promptCacheWriteTokens: 2.5,
+  promptCacheReadTokens: 0.2,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Sonnet 5.5: $2 input / $10 output per Mtok, cheaper cache reads
+export const COST_SONNET_55 = {
+  inputTokens: 2,
+  outputTokens: 10,
+  promptCacheWriteTokens: 2.5,
+  promptCacheReadTokens: 0.1,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Haiku 5.5: $0.10 input / $0.50 output per Mtok (prompts up to 100K tokens)
+export const COST_HAIKU_55 = {
+  inputTokens: 0.1,
+  outputTokens: 0.5,
+  promptCacheWriteTokens: 0.125,
+  promptCacheReadTokens: 0.01,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Fable 5 / 5.1: $10 input / $50 output per Mtok
+export const COST_FABLE_5 = {
+  inputTokens: 10,
+  outputTokens: 50,
+  promptCacheWriteTokens: 12.5,
+  promptCacheReadTokens: 1,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Fable 5.2: $8 input / $40 output per Mtok
+export const COST_FABLE_52 = {
+  inputTokens: 8,
+  outputTokens: 40,
+  promptCacheWriteTokens: 10,
+  promptCacheReadTokens: 0.2,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+// Fast mode pricing for Opus 5.5: $8 input / $40 output per Mtok
+export const COST_OPUS_55_FAST = {
+  inputTokens: 8,
+  outputTokens: 40,
+  promptCacheWriteTokens: 10,
+  promptCacheReadTokens: 0.4,
+  webSearchRequests: 0.01,
+} as const satisfies ModelCosts
+
+/** Cost tier for the current first-party Opus (5.5), by speed. */
+export function getCurrentOpusCostTier(fastMode: boolean): ModelCosts {
+  return isFastModeEnabled() && fastMode ? COST_OPUS_55_FAST : COST_OPUS_55
+}
+
 const DEFAULT_UNKNOWN_MODEL_COST = COST_TIER_5_25
 
 /**
@@ -125,6 +193,16 @@ export const MODEL_COSTS: Record<ModelShortName, ModelCosts> = {
     COST_TIER_5_25,
   [firstPartyNameToCanonical(CLAUDE_OPUS_4_6_CONFIG.firstParty)]:
     COST_TIER_5_25,
+  'claude-opus-4-7': COST_TIER_5_25,
+  'claude-opus-4-8': COST_TIER_5_25,
+  'claude-opus-5': COST_TIER_5_25,
+  'claude-opus-5-5': COST_OPUS_55,
+  'claude-sonnet-5': COST_SONNET_5,
+  'claude-sonnet-5-5': COST_SONNET_55,
+  'claude-haiku-5-5': COST_HAIKU_55,
+  'claude-fable-5': COST_FABLE_5,
+  'claude-fable-5-1': COST_FABLE_5,
+  'claude-fable-5-2': COST_FABLE_52,
 }
 
 /**
@@ -199,6 +277,10 @@ export function getModelCosts(model: string, usage: Usage): ModelCosts {
   ) {
     const isFastMode = usage.speed === 'fast'
     return getOpus46CostTier(isFastMode)
+  }
+
+  if (shortName === 'claude-opus-5-5' && usage.speed === 'fast') {
+    return COST_OPUS_55_FAST
   }
 
   const costs = MODEL_COSTS[shortName]

@@ -41,7 +41,8 @@ context (system prompt / tool docs) and load `reference/*.md` on demand.
 
 The skill is written for the **published SDKs** released 2026-10-29: `@zanii/sdk` 0.6.0 or later
 (with `@zanii/core` ^0.5.6, `@zanii/runtime` 0.4.0, `@zanii/cli` 0.3.0) and `zanii` 0.27.0 or later
-— except the **Regulator Hub** modules, which need `zanii` **0.28.0** (same 2026-10-29 date).
+— except the **Regulator Hub** modules, which need `zanii` **0.28.0** (same 2026-10-29 date), threat
+signatures (`zanii` 0.29.0) and role CVs (`zanii` 0.31.0), both 2026-11-01.
 If the SDK API or the HTTP API changes, update `SKILL.md` and the matching `reference/*.md` in
 the same change: the whole value of a skill is that it's *correct*. Run each new snippet against a
 local log (the reference server or `services/log-server`), never the production ledger.

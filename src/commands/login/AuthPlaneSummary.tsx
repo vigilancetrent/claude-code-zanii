@@ -149,6 +149,14 @@ export function AuthPlaneSummary({ status }: AuthPlaneSummaryProps): React.React
           </Box>
         </Box>
       )}
+      {process.env.OPENAI_AUTH_MODE === 'kimi' && (
+        <Box marginTop={1} flexDirection="column">
+          <Text bold>Kimi Code account:</Text>
+          <Box marginLeft={2}>
+            <Text dimColor>Selected for model requests</Text>
+          </Box>
+        </Box>
+      )}
     </Box>
   );
 }

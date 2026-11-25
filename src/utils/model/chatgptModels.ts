@@ -1,3 +1,4 @@
+import { getGlobalConfig } from '../config.js'
 export type ChatGPTCodexModelOption = {
   value: string
   label: string
@@ -7,15 +8,44 @@ export type ChatGPTCodexModelOption = {
 }
 
 let discoveredModels: ChatGPTCodexModelOption[] = []
+// False until the catalog has been set this run or read back from disk.
+let catalogLoaded = false
 export const CHATGPT_USAGE_URL = 'https://chatgpt.com/settings/usage'
 
 export function setChatGPTModelCatalog(
   models: ChatGPTCodexModelOption[],
 ): void {
   discoveredModels = models
+  // An empty catalog (logout, account change) falls back to the saved copy,
+  // which those paths delete first.
+  catalogLoaded = models.length > 0
 }
 
+/**
+ * The account catalog. Before the first fetch of a run it is the copy saved
+ * by the last successful fetch, so the context window is right from startup
+ * instead of falling back to the 200K default. The saved copy is removed on
+ * logout and account change, so it always belongs to the current login.
+ */
 export function getChatGPTModelCatalog(): ChatGPTCodexModelOption[] {
+  if (!catalogLoaded && isChatGPTAuthMode()) {
+    try {
+      const saved = getGlobalConfig().chatgptModelCatalog
+      // Stop looking only once a saved copy is found. A call made before the
+      // config is readable gets defaults (or throws), and must not block the
+      // read that follows. getGlobalConfig is cached, so retrying is cheap.
+      if (Array.isArray(saved)) {
+        catalogLoaded = true
+        discoveredModels = saved.filter(
+          option =>
+            typeof option?.value === 'string' &&
+            typeof option.label === 'string',
+        )
+      }
+    } catch {
+      // Config not readable yet: keep the fallbacks and try again next call.
+    }
+  }
   return discoveredModels
 }
 
@@ -44,7 +74,7 @@ export function resolveChatGPTCodexModelForTier(params: {
     params.taskOverride ??
     params.tierOverride ??
     (params.isChatGPTAuth
-      ? (discoveredModels[0]?.value ??
+      ? (getChatGPTModelCatalog()[0]?.value ??
         CHATGPT_CODEX_MODELS_BY_TIER[params.tier])
       : undefined)
   )
@@ -159,7 +189,7 @@ export function getChatGPTModelContextWindow(
   model: string,
 ): number | undefined {
   const accountModel = isChatGPTAuthMode()
-    ? discoveredModels.find(option => option.value === model)
+    ? getChatGPTModelCatalog().find(option => option.value === model)
     : undefined
   if (accountModel) {
     // shortcut: missing catalog limits use the existing estimate; replace it when the service supplies model-specific limits.

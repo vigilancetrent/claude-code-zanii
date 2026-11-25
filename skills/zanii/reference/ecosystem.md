@@ -377,6 +377,17 @@ algorithm accountable. TS + Python parity.
   see: a `work` list longer than `summary.receipts`, a `skill` with no backing authority scope, a `revoked`
   subject. `buildCV`, `signCV`, `generateCV` (pull the ledger aggregate), `cvHash`, `summarize`.
   Cross-language: a Python-signed CV verifies in TS. Deps `@zanii/core` + `@zanii/a2a-directory`.
+- **Role CVs and league tables** (`@zanii/cv` 0.3.0, `zanii` 0.31.0): the record of a whole role, every running
+  copy, split by release, and whether that count is **complete**. `createRoleRoster({ role, releases, asOf }, firmKey)`
+  (the firm signs which instance DIDs run each release; anchor its hash as a receipt) and
+  `buildRoleCV({ roster, instances: { [did]: { receipts, head } }, since?, expectedOwner? })` → totals and per-release
+  `{ agents, active_agents, actions, incidents, outcomes: { succeeded, failed, unknown }, by_target }`, `complete`, and
+  `problems` (missing instance, broken chain, chain behind the Ledger head from `/v1/head/{did}`, DID not on the
+  roster, another agent's receipt). Actions are receipts outside `zanii.*`; incidents are `zanii.guard.decision`;
+  outcomes are `zanii.outcome.succeeded|failed|unknown` receipts (the Campus Enforcer writes one after each executed
+  call). `firmStats(firm, cvs)` sums them; `leagueTable(stats, { minFirms = 5 })` ranks incidents per 10k actions,
+  success rate (unknown outcomes count against it) and SLA compliance, each published only when at least `minFirms`
+  firms report it; ties share a rank. Python: `create_role_roster`, `build_role_cv`, `firm_stats`, `league_table`.
 
 ## Agent economy (published — npm · zanii Python)
 
@@ -467,6 +478,9 @@ algorithm accountable. TS + Python parity.
   `@zanii/policy` gate that refuses pre-receipt. `createBroker({credentials, record, gate})` →
   `execute(req)`. Limits: isolation requires a **separate process**, and the operator must delete
   raw keys from the agent's env — the package removes the *need*, not the operator's choice.
+  The `record` you inject must confirm **its own** receipt: take `{ hash }` from `agent.record()`, find that hash in
+  `agent.flush()`'s results and require `status` `accepted` or `duplicate` (`SubmitResult` has no `ok` field; the
+  README example before 0.1.3 checked `r.ok` and so refused every call).
 - **`@zanii/vc`** / **`zanii.vc`** — the W3C Verifiable Credentials 2.0 bridge, not cosmetic:
   Zanii's did:key + Ed25519 + JCS **is** the W3C `eddsa-jcs-2022` cryptosuite, so `toVC` (a
   `credentials` credential re-issued by the same issuer key) and `cvToVC` (a self-issued AgentCV)
@@ -607,6 +621,12 @@ deadlines and secondary sources are flagged in the data.
   `feedSince`, `toAtom`, `toJsonFeed`, `anchorFeedHead` (pass to `agent.record()`). Events: `delegation.revoked`,
   `certificate.suspended|revoked|reinstated`, `incident.opened|closed`, `jurisdiction.issued|expired`. Proves who
   published what in which order, not that the events are true.
+  **Threat signatures** (0.2.0; `zanii` 0.29.0): `threat.signature` and `threat.retracted`, so a threat one member
+  blocked is refused by every member. `threatSignatureEvent({ match: 'target' | 'contains', value, reporter, label,
+  ts, evidence })`, `threatRetractionEvent({ ref, reporter, ts, evidence })`, `threatRefReasons(ref)`,
+  `activeThreatSignatures(entries)` (latest event per ref wins) and `matchThreat(signatures, { target, text })`.
+  `target:<scope pattern>` or `contains:<4 to 200 printable ASCII>`, matched ignoring ASCII case, as plain text, never a
+  regular expression. Verify the feed first; `activeThreatSignatures` does not check signatures.
 - **`@zanii/witness` 0.2.0**: C2SP `tlog-checkpoint` and `cosignature/v1` (`sthToCheckpoint`, `cosignCheckpoint`,
   `handleAddCheckpoint`, `verifyCheckpointQuorum`). The log's own signature rides as a `0xff zanii/sth/v1` note line, so
   a stock C2SP witness needs this handler.

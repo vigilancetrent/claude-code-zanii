@@ -116,11 +116,9 @@ export function isAnthropicAuthEnabled(): boolean {
   }
 
   const settings = getSettings_DEPRECATED() || {}
-  const is3P =
-    isThirdPartyAPIProvider(getAPIProvider(settings)) ||
-    !!process.env.OPENAI_BASE_URL ||
-    !!process.env.GEMINI_BASE_URL
-  if (is3P) return false
+  // getAPIProvider decides the provider. A stray OPENAI_BASE_URL in the shell
+  // or settings must not switch off a Claude subscription login.
+  if (isThirdPartyAPIProvider(getAPIProvider(settings))) return false
 
   const apiKeyHelper = settings.apiKeyHelper
   const hasExternalAuthToken =

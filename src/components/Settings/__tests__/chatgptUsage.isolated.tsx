@@ -122,7 +122,7 @@ describe('actual ChatGPT Usage presentation', () => {
     expect(output).toContain('OpenAI checks model access and limits for each request.');
     expect(output).toContain('API dollar estimates do not apply to subscription requests.');
     expect(output).toContain('Manage usage');
-    expect(output).toContain('/cost');
+    expect(output).toContain('/login');
     expect(output).not.toContain('% used');
     expect(output).not.toContain('Unlimited');
     expect(utilization).not.toHaveBeenCalled();

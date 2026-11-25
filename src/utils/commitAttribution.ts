@@ -153,6 +153,11 @@ export function sanitizeSurfaceKey(surfaceKey: string): string {
  */
 export function sanitizeModelName(shortName: string): string {
   // Map internal variants to public equivalents based on model family
+  const modern = shortName.match(
+    /claude-(?:opus|sonnet|haiku|fable)-[5-9](?:-\d{1,2})?(?!\d)/,
+  )
+  if (modern) return modern[0]
+  if (shortName.includes('opus-4-8')) return 'claude-opus-4-8'
   if (shortName.includes('opus-4-7')) return 'claude-opus-4-7'
   if (shortName.includes('opus-4-6')) return 'claude-opus-4-6'
   if (shortName.includes('opus-4-5')) return 'claude-opus-4-5'
