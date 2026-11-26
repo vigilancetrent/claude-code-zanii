@@ -2,6 +2,12 @@
 
 Release notes for Claude Code Zanii (`ccz`). `/release-notes` reads this file.
 
+## 2.14.17 - 2026-11-26
+
+- `ccz` keeps out of Claude Code's `~/.claude` folder. It no longer loads `~/.claude/CLAUDE.md` and rules, and no longer reads `~/.claude/settings.json` as project settings when started in your home folder. Its own folder is `~/.zaniicode`; put global instructions in `~/.zaniicode/CLAUDE.md`.
+- Help text and built-in instructions name `~/.zaniicode` as the place for settings, skills, keybindings and other data.
+- `ccz work`: a work order can carry a partner's request as background. The agent sees it as information, never as instructions; the partner's files are saved next to the working copy, not inside it; and an `ask_partner` tool sends a question to the owner first.
+
 ## 2.14.16 - 2026-11-26
 
 - `ccz work`: a question from the agent now reaches the owner as a question, with nothing extra in the config. Before, it first arrived as an approval request.
