@@ -20,14 +20,17 @@ import {
   type Json,
   type Order,
   type ServerLike,
+  ASK_RULES,
   RULES,
   Server,
   agentEnv,
+  autostart,
   buildPrompt,
   git,
   loadConfig,
   progressLine,
   runOrder,
+  startAskTools,
   work,
 } from '../work.js'
 
@@ -67,8 +70,21 @@ class FakeServer implements ServerLike {
       return [200, { holding: this.holding, beat_seconds: 0.05 }]
     if (path.startsWith('/v1/agent/work?')) return [200, { items: this.queued }]
     if (path.endsWith('/claim')) return [200, ORDER]
+    if (method === 'POST' && path.endsWith('/asks'))
+      return [201, { id: '5', status: 'waiting' }]
+    if (method === 'GET' && path.endsWith('/asks/5')) {
+      return [
+        200,
+        this.answers.length > 1
+          ? this.answers.shift()!
+          : (this.answers[0] ?? { status: 'waiting' }),
+      ]
+    }
     return [200, {}]
   }
+
+  /** What the owner answers, one entry per look. The last one stays. */
+  answers: Json[] = []
 
   sent(ending: string): Json[] {
     return this.calls
@@ -98,6 +114,9 @@ beforeEach(() => {
     maxMinutes: 1,
     worktrees: join(root, 'work'),
     commitAs: ['Zanii', 'info@zanii.agency'],
+    asks: false, // on in the tests that are about asking
+    askMinutes: 30,
+    askPollMs: 20,
   }
 })
 
@@ -412,5 +431,282 @@ describe('the real HTTP client', () => {
     expect(
       await new Server('http://localhost:1', 'ak_test').call('GET', '/x'),
     ).toEqual([0, {}])
+  })
+})
+
+describe('the agent asks the owner', () => {
+  const rpc = async (
+    tools: { url: string; token: string },
+    method: string,
+    params?: Json,
+    token = tools.token,
+  ) => {
+    const r = await fetch(tools.url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    })
+    return {
+      status: r.status,
+      body: r.status === 200 ? ((await r.json()) as Json) : {},
+    }
+  }
+  const callTool = async (
+    tools: { url: string; token: string },
+    name: string,
+    args: Json,
+  ) =>
+    (await rpc(tools, 'tools/call', { name, arguments: args })).body.result
+      .content[0].text as string
+
+  test('the tool server speaks the protocol, and only to the holder of the run secret', async () => {
+    const tools = await startAskTools(cfg, new FakeServer(), '7', {
+      stopped: false,
+    })
+    try {
+      expect(tools.url.startsWith('http://127.0.0.1:')).toBe(true) // this PC only
+      expect((await rpc(tools, 'initialize', {}, 'wrong')).status).toBe(401)
+      const hello = await rpc(tools, 'initialize', {
+        protocolVersion: '2025-06-18',
+      })
+      expect(hello.body.result.protocolVersion).toBe('2025-06-18')
+      expect(hello.body.result.capabilities).toEqual({ tools: {} })
+      const listed = (await rpc(tools, 'tools/list')).body.result.tools.map(
+        (t: Json) => t.name,
+      )
+      expect(listed).toEqual(['ask_owner', 'approve'])
+      const note = await fetch(tools.url, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${tools.token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          method: 'notifications/initialized',
+        }),
+      })
+      expect(note.status).toBe(202)
+      expect(JSON.parse(tools.agentArgs[1]!).mcpServers.zanii.url).toBe(
+        tools.url,
+      )
+      expect(tools.agentArgs.slice(2)).toEqual([
+        '--permission-prompt-tool',
+        'mcp__zanii__approve',
+      ])
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test("a question is passed on, the agent waits, and gets the owner's words", async () => {
+    const server = new FakeServer()
+    server.answers = [
+      { status: 'waiting' },
+      { status: 'waiting' },
+      { status: 'answered', answer: 'Half even, like the bank does.' },
+    ]
+    const tools = await startAskTools(cfg, server, '7', { stopped: false })
+    try {
+      expect(
+        await callTool(tools, 'ask_owner', {
+          question: 'Round half up or half even?',
+        }),
+      ).toBe('The owner answered: Half even, like the bank does.')
+      expect(server.sent('/asks')).toEqual([
+        {
+          kind: 'question',
+          body: 'Round half up or half even?',
+          detail: undefined,
+        },
+      ])
+      expect(
+        server.calls.filter(
+          ([method, path]) => method === 'GET' && path.endsWith('/asks/5'),
+        ),
+      ).toHaveLength(3)
+      expect(tools.waitedMs()).toBeGreaterThan(0)
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test('an action that needs permission goes to the owner: yes lets it run, no stops it', async () => {
+    const server = new FakeServer()
+    const tools = await startAskTools(cfg, server, '7', { stopped: false })
+    try {
+      const input = { command: 'pnpm install --frozen-lockfile' }
+      server.answers = [{ status: 'answered', approved: true }]
+      expect(
+        JSON.parse(
+          await callTool(tools, 'approve', {
+            tool_name: 'Bash',
+            input,
+            tool_use_id: 't1',
+          }),
+        ),
+      ).toEqual({
+        behavior: 'allow',
+        updatedInput: input,
+      })
+      expect(server.sent('/asks')[0]).toEqual({
+        kind: 'approval',
+        body: 'Bash: pnpm install --frozen-lockfile',
+        detail: { tool: 'Bash', input },
+      })
+      server.answers = [
+        {
+          status: 'answered',
+          approved: false,
+          answer: 'Do not delete the build folder.',
+        },
+      ]
+      expect(
+        JSON.parse(
+          await callTool(tools, 'approve', {
+            tool_name: 'Bash',
+            input: { command: 'rm -rf build' },
+          }),
+        ),
+      ).toEqual({
+        behavior: 'deny',
+        message: 'The owner said no: Do not delete the build folder.',
+      })
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test('a push is refused here without asking anyone, and no answer in time is a no', async () => {
+    const server = new FakeServer()
+    cfg.askMinutes = 0.002 // about a tenth of a second
+    const tools = await startAskTools(cfg, server, '7', { stopped: false })
+    try {
+      for (const command of [
+        'git push origin main',
+        'cd x && git -c a=b push',
+        'GIT PUSH',
+      ]) {
+        expect(
+          JSON.parse(
+            await callTool(tools, 'approve', {
+              tool_name: 'Bash',
+              input: { command },
+            }),
+          ).behavior,
+        ).toBe('deny')
+      }
+      expect(server.sent('/asks')).toEqual([]) // the owner was never bothered with it
+      const late = JSON.parse(
+        await callTool(tools, 'approve', {
+          tool_name: 'Bash',
+          input: { command: 'pnpm build' },
+        }),
+      )
+      expect(late.behavior).toBe('deny')
+      expect(late.message).toContain('no answer within')
+      expect(
+        await callTool(tools, 'ask_owner', { question: 'Anyone there?' }),
+      ).toContain('Do not guess')
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test('end to end: the agent program reaches the tools it was given and the answer comes back', async () => {
+    // A stand-in agent that behaves like ccz here: it reads --mcp-config from its own
+    // arguments and calls ask_owner over HTTP, then reports what it was told.
+    const script = join(cfg.worktrees, '..', 'asking-agent.cjs')
+    mkdirSync(join(cfg.worktrees, '..'), { recursive: true })
+    writeFileSync(
+      script,
+      `
+const fs = require('node:fs');
+const prompt = fs.readFileSync(0, 'utf8');
+const argv = process.argv;
+const zanii = JSON.parse(argv[argv.indexOf('--mcp-config') + 1]).mcpServers.zanii;
+fetch(zanii.url, {method: 'POST', headers: {...zanii.headers, 'Content-Type': 'application/json'},
+  body: JSON.stringify({jsonrpc: '2.0', id: 1, method: 'tools/call', params: {name: 'ask_owner', arguments: {question: 'Which currency?'}}})})
+  .then(r => r.json())
+  .then(j => console.log(JSON.stringify({type: 'result', result: j.result.content[0].text + ' | prompt tool: ' + argv[argv.indexOf('--permission-prompt-tool') + 1] + ' | told about asking: ' + prompt.includes('ask_owner')})));
+`,
+    )
+    cfg.asks = true
+    cfg.command = [process.execPath, script]
+    const server = new FakeServer()
+    server.answers = [
+      { status: 'waiting' },
+      { status: 'answered', answer: 'AED' },
+    ]
+    expect(await runOrder(cfg, server, ORDER, { stopped: false })).toBe(
+      'handed_in',
+    )
+    expect(server.sent('/status').at(-1)!.result).toBe(
+      'The owner answered: AED | prompt tool: mcp__zanii__approve | told about asking: true',
+    )
+    expect(buildPrompt(ORDER, true)).toContain(ASK_RULES)
+    expect(buildPrompt(ORDER)).not.toContain('ask_owner')
+  })
+})
+
+describe('starting by itself', () => {
+  const slash = (path: string) => path.split('\\').join('/')
+
+  test('on Windows it is one small file in the Startup folder that brings the worker back if it ends', () => {
+    const program = [
+      'C:/Program Files/nodejs/node.exe',
+      'C:/ccz/dist/cli-node.js',
+    ]
+    const start = autostart(
+      'C:/Users/me/worker.json',
+      program,
+      'win32',
+      { APPDATA: 'C:/Users/me/AppData/Roaming' },
+      'C:/Users/me',
+    )
+    expect(slash(start.path)).toBe(
+      'C:/Users/me/AppData/Roaming/Microsoft/Windows/Start Menu/Programs/Startup/zanii-worker.cmd',
+    )
+    expect(start.content).toContain(
+      '"C:/Program Files/nodejs/node.exe" "C:/ccz/dist/cli-node.js" "work" "',
+    )
+    expect(start.content).toContain('worker.json"')
+    expect(start.content).toContain('goto again') // it comes back a minute after it ends
+    expect(start.next).toBe('')
+  })
+
+  test('on Linux and macOS it is a user service, with the one command still to run', () => {
+    const linux = autostart(
+      '/home/me/worker.json',
+      ['/usr/bin/node', '/opt/ccz/cli-node.js'],
+      'linux',
+      {},
+      '/home/me',
+    )
+    expect(slash(linux.path)).toBe(
+      '/home/me/.config/systemd/user/zanii-worker.service',
+    )
+    expect(linux.content).toContain(
+      'ExecStart="/usr/bin/node" "/opt/ccz/cli-node.js" "work" "',
+    )
+    expect(linux.content).toContain('Restart=always')
+    expect(linux.next).toBe(
+      'systemctl --user enable --now zanii-worker.service',
+    )
+    const mac = autostart(
+      '/Users/me/worker.json',
+      ['/usr/local/bin/node', '/opt/ccz/cli-node.js'],
+      'darwin',
+      {},
+      '/Users/me',
+    )
+    expect(slash(mac.path)).toBe(
+      '/Users/me/Library/LaunchAgents/agency.zanii.worker.plist',
+    )
+    expect(mac.content).toContain('<string>work</string>')
+    expect(mac.next).toContain('launchctl load')
   })
 })

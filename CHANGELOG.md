@@ -2,6 +2,14 @@
 
 Release notes for Claude Code Zanii (`ccz`). `/release-notes` reads this file.
 
+## 2.14.15 - 2026-11-26
+
+- `ccz work`: the agent can ask the owner a question (`ask_owner`) and send actions it is not allowed by itself for approval. A push is always refused.
+- `ccz work <config> --install` makes the worker start at sign-in; `--uninstall` removes that. It needs `"key_file"` in the config.
+- `"extra_args"` in the worker config adds flags to the agent command, for example to allow a test command.
+- Known limit: a question from the agent first arrives as an approval request, so the owner is asked twice. To avoid that, start the worker with `ENABLE_SEARCH_EXTRA_TOOLS=0` and add `"extra_args": ["--allowedTools", "mcp__zanii__ask_owner"]`.
+- Use either `--install` or the `workAutoStart` setting, not both: together they start two workers on one key.
+
 ## 2.14.14 - 2026-11-26
 
 - The Zanii Calls worker can start by itself. Set `"workAutoStart": "<path to worker.json>"` in your user settings, and opening `ccz` starts `ccz work` in the background if it is not already running. It keeps running after the terminal closes.

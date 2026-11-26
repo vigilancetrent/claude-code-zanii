@@ -289,3 +289,15 @@ Source: a read-only audit of every command in the `/` menu (about 131: 104 work,
 - Not verified: the three-line call site in the interactive UI (cannot be driven from a script).
 - Limits: on Linux/macOS `work-stop` signals the worker's process group; an agent the worker started runs in its own group and may finish its current order. A pid reused by another program blocks a new worker until `work-stop`.
 - Tests: precheck 6177 pass, 0 fail. `test:chatgpt` 272 pass, 0 fail.
+
+## 2026-11-26: 2.14.15: worker questions, approvals, --install
+
+- `src/cli/handlers/work.ts` and its test updated from the connector source (logic unchanged; reformatted by this repo's formatter on commit). `src/main.tsx`: `--install` and `--uninstall` passed to `workHandler`.
+- Verified with the built CLI: 19 connector tests; `--install` without `key_file` prints the reason, exits 1, writes nothing; `--install` with a valid config was NOT run (it changes this PC's startup; the owner does that).
+- Real orders against a stand-in server:
+  - Approval: a shell command outside the allowed tools arrives as `kind: approval` with the exact command; refused, the agent stops and changes nothing. Works.
+  - `ask_owner`: does NOT arrive as a question by default. MCP tools need permission in acceptEdits mode, so the call goes to the approve tool first, and through `ExecuteExtraTool` (deferred tools) the request names the wrapper. Works without a double prompt only with `ENABLE_SEARCH_EXTRA_TOOLS=0` in the worker's environment plus `--allowedTools mcp__zanii__ask_owner`.
+- **Open, ccz side:** `ExecuteExtraTool.checkPermissions` returns `passthrough`, so allow rules for the target tool do not apply and the prompt shows the wrapper's name (`packages/builtin-tools/src/tools/ExecuteTool/ExecuteTool.ts:220`). Fixing it there would make `--allowedTools mcp__zanii__ask_owner` enough.
+- **Open:** after a refused shell command that wrote a file, the agent wrote the same file with the file editor (allowed in this mode).
+- **Two auto-start paths:** `workAutoStart` (2.14.14, starts when ccz opens, pid-file guard) and `--install` (Startup file, restarts every minute). Together they run two workers on one key. Decide which to keep.
+- Tests: precheck 6184 pass, 0 fail. `test:chatgpt` 272 pass, 0 fail.
