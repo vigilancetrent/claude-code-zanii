@@ -1,4 +1,5 @@
 import React from 'react';
+import { communitySearchHost } from './adapters/index.js';
 import { MessageResponse } from 'src/components/MessageResponse.js';
 import { TOOL_SUMMARY_MAX_LENGTH } from 'src/constants/toolLimits.js';
 import { Box, Text } from '@anthropic/ink';
@@ -53,6 +54,12 @@ export function renderToolUseMessage(
     if (blocked_domains && blocked_domains.length > 0) {
       message += `, blocking domains: ${blocked_domains.join(', ')}`;
     }
+  }
+
+  // Queries leave this PC for a server the user did not choose: say so.
+  const communityHost = communitySearchHost();
+  if (communityHost) {
+    message += ` · via ${communityHost} (community server, /web-tools to change)`;
   }
 
   return message;

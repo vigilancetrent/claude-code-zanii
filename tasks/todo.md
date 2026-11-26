@@ -261,3 +261,20 @@ Tests: precheck 6162 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.
 - Not tested inside the built CLI: cancel/stop and the time limit.
 - Test fix: `zaniiAgent.test.ts` replaced global `fetch` and left `ZANII_PROOF=1` set for the rest of the test process. It now flushes, switches the feature off and restores `fetch` when it finishes. Before, its stub answered other files' requests, and without the stub its queued submit reached the real network.
 - Tests: precheck 6174 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.
+
+## 2026-11-26: 2.14.13: slash command audit fixes
+
+Source: a read-only audit of every command in the `/` menu (about 131: 104 work, 20 need a Claude sign-in, 5 partial, 2 broken).
+
+- `/agents`: removed the `agents` alias from `agents-platform`, which shadowed the local agent manager on Claude sign-ins.
+- `/daemon start`: launched as a detached process (it used to run the supervisor inside the REPL and never return).
+- `/tui`: `isFullscreenEnvEnabled` now reads the `.tui-mode` marker the command writes.
+- `/ultrareview`, `/ultraplan`, `/teleport`, `/autofix-pr`: `availability: ['claude-ai']`. `/chrome` left visible on purpose (the fork sets `availability: []`; the Chrome bridge package works without a subscription). `/voice` left visible (works with a Doubao key).
+- `/assistant`: no "panel" wording; a second run says the mode is already active.
+- `/feedback`, `/bug`: disabled (`isEnabled: () => false`) until there is a Zanii feedback endpoint. Code kept.
+- `/release-notes`: reads `CHANGELOG.md` from `vigilancetrent/claude-code-zanii`. New `CHANGELOG.md` covers 2.14.4 to 2.14.13; a test requires an entry for the current version, so add one on every release.
+- Artifacts: opt-in. No built-in server or token; tool, `/artifacts` and `/use-artifacts` need `CLAUDE_ARTIFACTS_URL`.
+- Web search: the tool message names the community server when it is the default in use.
+- Tests: precheck 6177 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail. Built CLI: agent task and web search OK.
+- **Not checked in the real UI:** none of the changed commands was run interactively. To do by hand on a Claude sign-in: `/agents`, `/daemon start` then `/daemon status`, `/tui on` then restart, `/release-notes`, and confirm `/feedback` is gone.
+- **Still open from the audit:** web fetch also uses the community Tavily host (no notice added); `/usage` no longer reaches the old activity stats; `/mobile` and `/stickers` point at Anthropic's app and shop; `/perf-issue` cost table has Claude models only; whether Anthropic's cloud accepts this fork for ultrareview, ultraplan, teleport, autofix-pr and triggers is untested.

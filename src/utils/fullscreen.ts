@@ -1,7 +1,13 @@
 import { spawnSync } from 'child_process'
+import { existsSync } from 'fs'
+import { join } from 'path'
 import { getIsInteractive } from '../bootstrap/state.js'
 import { logForDebugging } from './debug.js'
-import { isEnvDefinedFalsy, isEnvTruthy } from './envUtils.js'
+import {
+  getClaudeConfigHomeDir,
+  isEnvDefinedFalsy,
+  isEnvTruthy,
+} from './envUtils.js'
 import { execFileNoThrow } from './execFileNoThrow.js'
 
 let loggedTmuxCcDisable = false
@@ -125,7 +131,14 @@ export function isFullscreenEnvEnabled(): boolean {
     }
     return false
   }
-  return process.env.USER_TYPE === 'ant'
+  return process.env.USER_TYPE === 'ant' || hasTuiMarker()
+}
+
+// `/tui on` writes this marker. Read once: it only applies from the next start.
+let tuiMarker: boolean | undefined
+function hasTuiMarker(): boolean {
+  tuiMarker ??= existsSync(join(getClaudeConfigHomeDir(), '.tui-mode'))
+  return tuiMarker
 }
 
 /**

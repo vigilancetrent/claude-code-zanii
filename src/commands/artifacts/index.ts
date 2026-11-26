@@ -1,3 +1,4 @@
+import { isArtifactsConfigured } from '@claude-code-best/builtin-tools/tools/ArtifactTool/config.js'
 import type { Command } from '../../commands.js'
 
 const artifacts = {
@@ -5,7 +6,8 @@ const artifacts = {
   name: 'artifacts',
   description:
     'List HTML artifacts uploaded to cloud-artifacts in this session',
-  isEnabled: () => true,
+  // Only when the user has set their own artifacts server (config.ts).
+  isEnabled: () => isArtifactsConfigured(),
   load: () => import('./artifacts.js'),
 } satisfies Command
 

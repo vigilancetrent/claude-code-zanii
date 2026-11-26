@@ -27,26 +27,41 @@ export type SearchAdapterKey = 'api' | 'bing' | 'brave' | 'exa' | 'tavily'
 let cachedAdapter: WebSearchAdapter | null = null
 let cachedAdapterKey: SearchAdapterKey | null = null
 
-export function createAdapter(): WebSearchAdapter {
+/**
+ * The community-run search server, when searches go through it: the default
+ * adapter with no endpoint of the user's own. Shown in the UI so the user
+ * knows where queries are sent. Null when another adapter or endpoint is set.
+ */
+export function communitySearchHost(): string | null {
+  const settings = getSettings_DEPRECATED() as { tavilyEndpointUrl?: string }
+  return resolveAdapterKey() === 'tavily' && !settings.tavilyEndpointUrl
+    ? 'tavily.claude-code-best.win'
+    : null
+}
+
+function resolveAdapterKey(): SearchAdapterKey {
   // 1. Explicit env override
   const envAdapter = process.env.WEB_SEARCH_ADAPTER
   // 2. Settings preference (set via /web-tools panel)
   const settingsAdapter = getSettings_DEPRECATED().webSearchAdapter
 
-  const adapterKey: SearchAdapterKey =
-    envAdapter === 'api' ||
+  return envAdapter === 'api' ||
     envAdapter === 'bing' ||
     envAdapter === 'brave' ||
     envAdapter === 'exa' ||
     envAdapter === 'tavily'
-      ? envAdapter
-      : settingsAdapter === 'api' ||
-          settingsAdapter === 'bing' ||
-          settingsAdapter === 'brave' ||
-          settingsAdapter === 'exa' ||
-          settingsAdapter === 'tavily'
-        ? settingsAdapter
-        : 'tavily' // 3. Default
+    ? envAdapter
+    : settingsAdapter === 'api' ||
+        settingsAdapter === 'bing' ||
+        settingsAdapter === 'brave' ||
+        settingsAdapter === 'exa' ||
+        settingsAdapter === 'tavily'
+      ? settingsAdapter
+      : 'tavily' // 3. Default
+}
+
+export function createAdapter(): WebSearchAdapter {
+  const adapterKey = resolveAdapterKey()
 
   if (cachedAdapter && cachedAdapterKey === adapterKey) return cachedAdapter
 

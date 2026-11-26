@@ -10,6 +10,8 @@ const teleport: Command = {
   // REPL markdown renderer strips `<...>` as HTML tags — use uppercase.
   argumentHint: 'SESSION_ID',
   isHidden: false,
+  // Sessions live on claude.ai: needs a Claude subscription.
+  availability: ['claude-ai'],
   isEnabled: () => true,
   bridgeSafe: false,
   getBridgeInvocationError: (_args: string) =>

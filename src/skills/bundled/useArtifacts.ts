@@ -1,3 +1,4 @@
+import { isArtifactsConfigured } from '@claude-code-best/builtin-tools/tools/ArtifactTool/config.js'
 import { registerBundledSkill } from '../bundledSkills.js'
 
 const USE_ARTIFACTS_PROMPT = `# Using Artifacts
@@ -116,6 +117,8 @@ export function registerUseArtifactsSkill(): void {
     whenToUse:
       'Use this skill at the start of any complex task that would benefit from a living progress document or a deliverable HTML report.',
     userInvocable: true,
+    // The artifact tool only exists once the user has set their own server.
+    isEnabled: () => isArtifactsConfigured(),
     argumentHint: '[optional focus note]',
     async getPromptForCommand(args) {
       let prompt = USE_ARTIFACTS_PROMPT

@@ -16,6 +16,8 @@ const autofixPr: Command = {
   // Avoid `<x>` in hints — REPL markdown renderer eats angle-bracketed
   // tokens as HTML tags. Uppercase placeholders survive intact.
   argumentHint: 'PR_NUMBER | stop | OWNER/REPO#N',
+  // Runs as a remote Claude session: needs a Claude subscription.
+  availability: ['claude-ai'],
   isEnabled: isAutofixPrEnabled,
   isHidden: false,
   bridgeSafe: true,

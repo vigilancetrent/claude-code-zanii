@@ -8,7 +8,11 @@ import {
   describeArtifactTool,
   getArtifactToolPrompt,
 } from './prompt.js'
-import { getArtifactsToken, getUploadUrl } from './config.js'
+import {
+  getArtifactsToken,
+  getUploadUrl,
+  isArtifactsConfigured,
+} from './config.js'
 import { uploadArtifact } from './client.js'
 import { markdownToHtml } from './markdown.js'
 import { renderToolResultMessage } from './UI.js'
@@ -70,7 +74,7 @@ export const ArtifactTool = buildTool({
   },
 
   isEnabled() {
-    return true
+    return isArtifactsConfigured()
   },
   isConcurrencySafe() {
     return false

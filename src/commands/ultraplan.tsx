@@ -497,6 +497,8 @@ export default {
   description: `~10–30 min · Claude Code on the web drafts an advanced plan you can edit and approve. See ${CCR_TERMS_URL}`,
   argumentHint: '<prompt>',
   // isEnabled: () => process.env.USER_TYPE === 'ant',
+  // Runs in Claude Code on the web: needs a Claude subscription.
+  availability: ['claude-ai'],
   isEnabled: () => isUltraplanEnabled(),
   load: () => Promise.resolve({ call }),
 } satisfies Command;

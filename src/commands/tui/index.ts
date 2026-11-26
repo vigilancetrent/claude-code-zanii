@@ -66,11 +66,7 @@ function enableTui(): LocalCommandResult {
       `Marker written: \`${markerPath}\``,
       '',
       'Flicker-free alternate-screen rendering will be active on the next',
-      'session start.  Add this to your shell profile to make it permanent:',
-      '',
-      '  [ -f "$HOME/.claude/.tui-mode" ] && export CLAUDE_CODE_NO_FLICKER=1',
-      '',
-      'To disable: `/tui off`',
+      'session start, and stays on until you run `/tui off`.',
     ].join('\n'),
   }
 }

@@ -1,4 +1,5 @@
 import type { LocalJSXCommandOnDone, LocalJSXCommandContext } from '../../types/command.js';
+import { buildCliLaunch, spawnCli } from '../../utils/cliLaunch.js';
 
 /**
  * /daemon slash command — manages daemon and background sessions from the REPL.
@@ -17,6 +18,26 @@ export async function call(
   // attach is interactive/blocking — not available inside the REPL
   if (sub === 'attach') {
     onDone('Use `claude daemon attach` from the CLI. Attach is not available inside the REPL.', { display: 'system' });
+    return null;
+  }
+
+  // start runs the supervisor until it is signalled, so it cannot run inside
+  // this window: it would never return and would record this window's pid as
+  // the daemon. Launch it as its own detached process instead.
+  if (sub === 'start') {
+    try {
+      const child = spawnCli(buildCliLaunch(['daemon', ...parts]), {
+        stdio: 'ignore',
+        detached: true,
+      });
+      child.on('error', () => {});
+      child.unref();
+      onDone('Daemon starting in the background. Check it with `/daemon status`.', { display: 'system' });
+    } catch (error) {
+      onDone(`Failed to start the daemon: ${error instanceof Error ? error.message : String(error)}`, {
+        display: 'system',
+      });
+    }
     return null;
   }
 

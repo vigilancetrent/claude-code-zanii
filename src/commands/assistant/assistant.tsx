@@ -140,36 +140,15 @@ export async function call(
         ({
           ...prev,
           kairosEnabled: true,
-          assistantPanelVisible: true,
         }) as AppState,
     );
     onDone('KAIROS assistant mode activated.', { display: 'system' });
     return null;
   }
 
-  // Subsequent invocations: toggle panel visibility
-  const current = getAppState();
-  const isVisible = (current as Record<string, unknown>).assistantPanelVisible;
-
-  if (isVisible) {
-    setAppState(
-      (prev: AppState) =>
-        ({
-          ...prev,
-          assistantPanelVisible: false,
-        }) as AppState,
-    );
-    onDone('Assistant panel hidden.', { display: 'system' });
-  } else {
-    setAppState(
-      (prev: AppState) =>
-        ({
-          ...prev,
-          assistantPanelVisible: true,
-        }) as AppState,
-    );
-    onDone('Assistant panel opened.', { display: 'system' });
-  }
+  // There is no assistant panel in this build; the command only turns the
+  // mode on, so a second run has nothing to toggle.
+  onDone('KAIROS assistant mode is already active.', { display: 'system' });
 
   return null;
 }

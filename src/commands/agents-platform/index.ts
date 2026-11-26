@@ -8,7 +8,10 @@ import type { Command } from '../../types/command.js'
 const agentsPlatform: Command = {
   type: 'local-jsx',
   name: 'agents-platform',
-  aliases: ['agents', 'schedule-agent'],
+  // No `agents` alias: this command is listed before the local /agents, and
+  // command lookup returns the first name-or-alias match, so the alias sent
+  // Claude sign-ins to this cloud command instead of the agent manager.
+  aliases: ['schedule-agent'],
   description: 'Manage scheduled remote agents (cron-style triggers)',
   // REPL markdown renderer strips `<...>` as HTML tags — use uppercase.
   argumentHint: 'list | create CRON PROMPT | delete ID | run ID',

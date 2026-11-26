@@ -1,17 +1,21 @@
 /**
  * Cloud Artifacts service configuration.
- * Token/URL have hardcoded production defaults; env vars override for self-hosted deployments.
+ *
+ * Opt-in: there is no built-in server. Uploading sends the user's HTML or
+ * Markdown to whoever runs the server, so it only happens when the user has
+ * pointed CLAUDE_ARTIFACTS_URL at one they chose (packages/cloud-artifacts
+ * is the worker to deploy). CLAUDE_ARTIFACTS_TOKEN is that server's token.
  */
-export const ARTIFACTS_DEFAULT_TOKEN = 'claude-code-best'
-export const ARTIFACTS_DEFAULT_URL =
-  'https://cloud-artifacts.claude-code-best.win'
+export function isArtifactsConfigured(): boolean {
+  return !!process.env.CLAUDE_ARTIFACTS_URL?.trim()
+}
 
 export function getArtifactsToken(): string {
-  return process.env.CLAUDE_ARTIFACTS_TOKEN ?? ARTIFACTS_DEFAULT_TOKEN
+  return process.env.CLAUDE_ARTIFACTS_TOKEN ?? ''
 }
 
 export function getArtifactsBaseUrl(): string {
-  return process.env.CLAUDE_ARTIFACTS_URL ?? ARTIFACTS_DEFAULT_URL
+  return process.env.CLAUDE_ARTIFACTS_URL?.trim() ?? ''
 }
 
 /** Strip trailing slash so `${base}/upload` is well-formed. */
