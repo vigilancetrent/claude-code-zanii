@@ -273,6 +273,8 @@ export interface AskTools {
   token: string
   /** The extra arguments that make ccz or claude use these tools. */
   agentArgs: string[]
+  /** The one tool the agent may always use without asking: the question itself. */
+  allow: string
   /** Time the agent spent waiting for the owner. It does not count against the time limit. */
   waitedMs(): number
   close(): Promise<void>
@@ -344,9 +346,18 @@ export async function startAskTools(
   }
 
   const approve = async (args: Json): Promise<string> => {
-    const tool = String(args.tool_name ?? 'tool')
-    const input: Json =
+    const asked: Json =
       args.input && typeof args.input === 'object' ? args.input : {}
+    // ccz can run a tool through a wrapper ({tool_name, params}). The owner must see, and
+    // the never-push rule must judge, the tool that really runs, not the wrapper.
+    const wrapped =
+      typeof asked.tool_name === 'string' &&
+      asked.params &&
+      typeof asked.params === 'object'
+    const tool = wrapped
+      ? String(asked.tool_name)
+      : String(args.tool_name ?? 'tool')
+    const input: Json = wrapped ? asked.params : asked
     const deny = (message: string) =>
       JSON.stringify({ behavior: 'deny', message })
     if (NEVER.test(String(input.command ?? '')))
@@ -368,7 +379,7 @@ export async function startAskTools(
     if (got.none) return deny(`The owner did not approve this: ${got.none}.`)
     if (got.approved !== true)
       return deny(`The owner said no${got.answer ? `: ${got.answer}` : '.'}`)
-    return JSON.stringify({ behavior: 'allow', updatedInput: input })
+    return JSON.stringify({ behavior: 'allow', updatedInput: asked }) // hand back exactly what was asked about
   }
 
   const tools = [
@@ -500,6 +511,7 @@ export async function startAskTools(
       '--permission-prompt-tool',
       'mcp__zanii__approve',
     ],
+    allow: 'mcp__zanii__ask_owner',
     waitedMs: () => waited,
     close: () =>
       new Promise<void>(resolve => {
@@ -589,6 +601,27 @@ export function collect(
     }
   }
   return out
+}
+
+/**
+ * The agent's arguments with the ask tools added. Asking the owner a question must not
+ * itself need the owner's permission, so that tool is put on the allowed list: joined to
+ * the list the config already has, or as a list of its own.
+ */
+export function withAskTools(
+  args: string[],
+  asks: Pick<AskTools, 'agentArgs' | 'allow'> | null,
+): string[] {
+  if (!asks) return args
+  const at = args.findIndex(
+    a => a === '--allowedTools' || a === '--allowed-tools',
+  )
+  const own =
+    at >= 0
+      ? [...args.slice(0, at + 1), asks.allow, ...args.slice(at + 1)]
+      : [...args, '--allowedTools', asks.allow]
+  // ponytail: our flags go last, after any list, because a list flag takes every word up to the next flag
+  return [...own, ...asks.agentArgs]
 }
 
 /** End the agent and everything it started. A plain kill would leave its children running. */
@@ -684,17 +717,13 @@ export async function runOrder(
   }
 
   await new Promise<void>(resolve => {
-    const child = spawn(
-      program,
-      [...cfg.command.slice(1), ...(asks?.agentArgs ?? [])],
-      {
-        cwd: tree,
-        env: agentEnv(cfg.key),
-        stdio: ['pipe', 'pipe', 'pipe'],
-        windowsHide: true,
-        detached: process.platform !== 'win32', // its own process group, so the whole tree can be ended
-      },
-    )
+    const child = spawn(program, withAskTools(cfg.command.slice(1), asks), {
+      cwd: tree,
+      env: agentEnv(cfg.key),
+      stdio: ['pipe', 'pipe', 'pipe'],
+      windowsHide: true,
+      detached: process.platform !== 'win32', // its own process group, so the whole tree can be ended
+    })
     let buffer = ''
     const feed = (chunk: Buffer) => {
       buffer += chunk.toString('utf8')

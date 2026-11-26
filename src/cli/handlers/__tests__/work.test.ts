@@ -31,6 +31,7 @@ import {
   progressLine,
   runOrder,
   startAskTools,
+  withAskTools,
   work,
 } from '../work.js'
 
@@ -708,5 +709,105 @@ describe('starting by itself', () => {
     )
     expect(mac.content).toContain('<string>work</string>')
     expect(mac.next).toContain('launchctl load')
+  })
+})
+
+describe('a tool run through the ccz wrapper', () => {
+  const call = async (tools: { url: string; token: string }, args: Json) => {
+    const r = await fetch(tools.url, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${tools.token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'approve', arguments: args },
+      }),
+    })
+    return JSON.parse(((await r.json()) as Json).result.content[0].text)
+  }
+
+  test('a push hidden inside the wrapper is still refused without asking anyone', async () => {
+    const server = new FakeServer()
+    const tools = await startAskTools(cfg, server, '7', { stopped: false })
+    try {
+      const wrapped = {
+        tool_name: 'Bash',
+        params: { command: 'git push origin main' },
+      }
+      const got = await call(tools, {
+        tool_name: 'ExecuteExtraTool',
+        input: wrapped,
+      })
+      expect(got.behavior).toBe('deny')
+      expect(got.message).toContain('never pushes')
+      expect(server.sent('/asks')).toEqual([])
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test('the owner sees the tool that really runs, and a yes hands back exactly what was asked', async () => {
+    const server = new FakeServer()
+    server.answers = [{ status: 'answered', approved: true }]
+    const tools = await startAskTools(cfg, server, '7', { stopped: false })
+    try {
+      const wrapped = { tool_name: 'Bash', params: { command: 'pnpm install' } }
+      const got = await call(tools, {
+        tool_name: 'ExecuteExtraTool',
+        input: wrapped,
+      })
+      expect(server.sent('/asks')[0]).toEqual({
+        kind: 'approval',
+        body: 'Bash: pnpm install',
+        detail: { tool: 'Bash', input: { command: 'pnpm install' } },
+      })
+      expect(got).toEqual({ behavior: 'allow', updatedInput: wrapped })
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test('asking the owner never needs permission itself: the tool joins the allowed list', () => {
+    const asks = {
+      agentArgs: [
+        '--mcp-config',
+        '{}',
+        '--permission-prompt-tool',
+        'mcp__zanii__approve',
+      ],
+      allow: 'mcp__zanii__ask_owner',
+    }
+    expect(withAskTools(['-p', '--verbose'], null)).toEqual(['-p', '--verbose'])
+    expect(withAskTools(['-p', '--verbose'], asks)).toEqual([
+      '-p',
+      '--verbose',
+      '--allowedTools',
+      'mcp__zanii__ask_owner',
+      '--mcp-config',
+      '{}',
+      '--permission-prompt-tool',
+      'mcp__zanii__approve',
+    ])
+    // A list from the config is kept and ours is added to it, not put in a second list.
+    expect(
+      withAskTools(
+        ['-p', '--allowedTools', 'Bash(pnpm test:*)', 'Bash(git status:*)'],
+        asks,
+      ),
+    ).toEqual([
+      '-p',
+      '--allowedTools',
+      'mcp__zanii__ask_owner',
+      'Bash(pnpm test:*)',
+      'Bash(git status:*)',
+      '--mcp-config',
+      '{}',
+      '--permission-prompt-tool',
+      'mcp__zanii__approve',
+    ])
   })
 })

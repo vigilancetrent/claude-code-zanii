@@ -2,6 +2,13 @@
 
 Release notes for Claude Code Zanii (`ccz`). `/release-notes` reads this file.
 
+## 2.14.16 - 2026-11-26
+
+- `ccz work`: a question from the agent now reaches the owner as a question, with nothing extra in the config. Before, it first arrived as an approval request.
+- `ccz work`: a `git push` is refused on this PC without asking the owner, also when it is sent through the on-demand tool wrapper. Approval requests name the tool that really runs.
+- Permission rules for an on-demand tool now apply when it runs through the wrapper. A rule such as `--allowedTools mcp__server__tool` used to be ignored there. An on-demand tool that allows itself now runs without a prompt, as it does when called directly.
+- `ccz work --install` and `--uninstall` are removed. Use the `workAutoStart` setting to start the worker by itself.
+
 ## 2.14.15 - 2026-11-26
 
 - `ccz work`: the agent can ask the owner a question (`ask_owner`) and send actions it is not allowed by itself for approval. A push is always refused.

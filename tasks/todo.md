@@ -302,10 +302,22 @@ Source: a read-only audit of every command in the `/` menu (about 131: 104 work,
 - **Two auto-start paths:** `workAutoStart` (2.14.14, starts when ccz opens, pid-file guard) and `--install` (Startup file, restarts every minute). Together they run two workers on one key. Decide which to keep.
 - Tests: precheck 6184 pass, 0 fail. `test:chatgpt` 272 pass, 0 fail.
 
-## 2026-11-26: after 2.14.15 (committed locally, NOT pushed, NOT released)
+## 2026-11-26: 2.14.16 (part 1): wrapper permissions, one auto-start path
 
 - **ExecuteExtraTool permissions:** `checkPermissions` now decides as the target tool: deny rule, ask rule, the target's own check, then allow rule. Before, it always returned `passthrough`, so allow rules for a deferred tool never matched and every deferred call asked. The request still carries the tool name `ExecuteExtraTool` with the target and params in its input; the name itself is not rewritten.
 - **Live check** (built CLI, stand-in server, config with only `"extra_args": ["--allowedTools", "mcp__zanii__ask_owner"]`, no `ENABLE_SEARCH_EXTRA_TOOLS`): the ask arrives as `kind: question` first, the answer reaches the agent, the file is written. A shell command outside the allowed tools still arrives as `kind: approval` and a refusal is respected.
 - **One auto-start path:** `ccz work` no longer offers `--install` / `--uninstall` (removed from `src/main.tsx` only; `work.ts` keeps the code and stays identical to the connector source). `workAutoStart` is the supported way. Tell the connector author: its README still documents `--install` for ccz.
 - Behaviour change to note: a deferred tool whose own permission check returns `allow` now runs through ExecuteExtraTool without a prompt, the same as when it is called directly.
 - Tests: precheck 6184 pass, 0 fail. `test:chatgpt` 280 pass, 0 fail (8 new for the wrapper's permissions).
+
+## 2026-11-26: 2.14.16 (part 2): connector update, live checks
+
+- `work.ts` and its test updated from the connector source (22 tests): the worker adds `mcp__zanii__ask_owner` to the agent's allowed list itself (`withAskTools`), and the approval handler looks inside `ExecuteExtraTool {tool_name, params}`. Wiring unchanged (no `--install`, explicit exit).
+- Live, built CLI, stand-in server, NO `extra_args`:
+  - Question: arrives first as `kind: question`; answer reaches the agent; file written.
+  - Approval: shell command outside the allowed tools arrives as `kind: approval` with the exact command; refused; nothing changed.
+  - Push, first run: the agent did not attempt it; it asked the owner a question about the conflict with its job rules and stopped. Nothing pushed.
+  - Push, owner answers yes: the agent ran `git push origin HEAD:refs/heads/pushed-by-agent`; refused on this PC with "This worker never pushes"; the server received no approval ask for it; the local bare remote still had only `main`.
+- Not exercised live: a push sent through `ExecuteExtraTool` (Bash is a core tool, so the agent calls it directly). The connector's own tests cover that path.
+- Before turning on `workAutoStart`: an old worker (2.14.13 code, same key) may still be running on this PC. End it in Task Manager: a node process whose command line has `work` and `worker.json`.
+- Tests: precheck 6187 pass, 0 fail. `test:chatgpt` 280 pass, 0 fail.
