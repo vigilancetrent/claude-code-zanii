@@ -253,7 +253,7 @@ Changes since 2.14.10: compaction prompt without written analysis on Claude 5; s
 
 Tests: precheck 6162 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail.
 
-## 2026-11-26: `ccz work <config>` (pushed to main, NOT published; installed ccz is still 2.14.11)
+## 2026-11-26: 2.14.12: `ccz work <config>`
 
 - New command: takes work orders from a Zanii Calls server and runs each in a separate git worktree by starting this same CLI as a separate headless process. Source of truth is `connector/ccz/work.ts` in the live_kit project; `src/cli/handlers/work.ts` is a copy (reformatted by this repo's formatter, logic unchanged). Its Python twin is `connector/zanii_worker.py`: change both together.
 - Wiring: `src/main.tsx`, registered before `mcp`, with an explicit `process.exit` after `workHandler` returns (startup leaves handles open; without it a config error printed and then hung).
