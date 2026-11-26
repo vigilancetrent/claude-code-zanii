@@ -12,7 +12,11 @@ import { getRemoteManagedSettingsSyncFromCache } from '../../services/remoteMana
 import { uniq } from '../array.js'
 import { logForDebugging } from '../debug.js'
 import { logForDiagnosticsNoPII } from '../diagLogs.js'
-import { getClaudeConfigHomeDir, isEnvTruthy } from '../envUtils.js'
+import {
+  getClaudeConfigHomeDir,
+  isEnvTruthy,
+  isOtherProgramsClaudeHome,
+} from '../envUtils.js'
 import { getErrnoCode, isENOENT } from '../errors.js'
 import { writeFileSyncAndFlush_DEPRECATED } from '../file.js'
 import { readFileSync } from '../fileRead.js'
@@ -282,10 +286,14 @@ export function getSettingsFilePathForSource(
       )
     case 'projectSettings':
     case 'localSettings': {
-      return join(
+      const path = join(
         getSettingsRootPathForSource(source),
         getRelativeSettingsFilePathForSource(source),
       )
+      // Started in the home folder, the "project" settings file would be
+      // ~/.claude/settings.json: Claude Code's own user settings. That is
+      // another program's file, so there are no project settings here.
+      return isOtherProgramsClaudeHome(path) ? undefined : path
     }
     case 'policySettings':
       return getManagedSettingsFilePath()

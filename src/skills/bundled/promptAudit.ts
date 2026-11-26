@@ -2,11 +2,11 @@ import { registerBundledSkill } from '../bundledSkills.js'
 
 const PROMPT_AUDIT_PROMPT = `# Prompt audit
 
-Find instructions that have rotted: CLAUDE.md files, \`.claude/rules/*.md\`, skills under \`.claude/skills\` and \`~/.claude/skills\`, and agent definitions under \`.claude/agents\` that reference things which no longer exist or contradict each other.
+Find instructions that have rotted: CLAUDE.md files, \`.claude/rules/*.md\`, skills under \`.claude/skills\` and \`~/.zaniicode/skills\`, and agent definitions under \`.claude/agents\` that reference things which no longer exist or contradict each other.
 
 ## Steps
 
-1. Collect the prompt files: \`CLAUDE.md\` at the repo root and in subdirectories, \`~/.claude/CLAUDE.md\`, \`.claude/rules/**/*.md\`, every \`SKILL.md\`, every \`.claude/agents/*.md\`. Read them all.
+1. Collect the prompt files: \`CLAUDE.md\` at the repo root and in subdirectories, \`~/.zaniicode/CLAUDE.md\`, \`.claude/rules/**/*.md\`, every \`SKILL.md\`, every \`.claude/agents/*.md\`. Read them all.
 2. For each file, extract concrete claims: file paths, directory names, script names in \`package.json\`/\`Makefile\`, slash commands, env vars, tool names, package names, version numbers, URLs.
 3. Verify each claim against the repo (Glob/Grep/Read) and against the command list you know. Flag:
    - **Dead references**: paths, scripts, commands, env vars that do not exist.

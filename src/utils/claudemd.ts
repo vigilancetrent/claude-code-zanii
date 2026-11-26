@@ -55,7 +55,11 @@ import {
 } from './config.js'
 import { logForDebugging } from './debug.js'
 import { logForDiagnosticsNoPII } from './diagLogs.js'
-import { getClaudeConfigHomeDir, isEnvTruthy } from './envUtils.js'
+import {
+  getClaudeConfigHomeDir,
+  isEnvTruthy,
+  isOtherProgramsClaudeHome,
+} from './envUtils.js'
 import { getErrnoCode } from './errors.js'
 import { normalizePathForComparison } from './file.js'
 import { cacheKeys, type FileStateCache } from './fileStateCache.js'
@@ -630,6 +634,10 @@ export async function processMemoryFile(
     return []
   }
 
+  if (isOtherProgramsClaudeHome(filePath)) {
+    return []
+  }
+
   // Skip if path is excluded by claudeMdExcludes setting
   if (isClaudeMdExcluded(filePath, type)) {
     return []
@@ -708,7 +716,7 @@ export async function processMdRules({
   conditionalRule: boolean
   visitedDirs?: Set<string>
 }): Promise<MemoryFileInfo[]> {
-  if (visitedDirs.has(rulesDir)) {
+  if (visitedDirs.has(rulesDir) || isOtherProgramsClaudeHome(rulesDir)) {
     return []
   }
 

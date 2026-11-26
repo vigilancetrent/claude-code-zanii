@@ -321,3 +321,19 @@ Source: a read-only audit of every command in the `/` menu (about 131: 104 work,
 - Not exercised live: a push sent through `ExecuteExtraTool` (Bash is a core tool, so the agent calls it directly). The connector's own tests cover that path.
 - Before turning on `workAutoStart`: an old worker (2.14.13 code, same key) may still be running on this PC. End it in Task Manager: a node process whose command line has `work` and `worker.json`.
 - Tests: precheck 6187 pass, 0 fail. `test:chatgpt` 280 pass, 0 fail.
+
+## 2026-11-26: keep ccz out of Claude Code's ~/.claude (committed locally, NOT pushed, NOT released)
+
+Owner's rule: ccz and Claude Code are two programs; ccz data lives in `~/.zaniicode` and must not mix with `~/.claude`.
+
+- **Found:** ccz's own config folder was already separate (`getClaudeConfigHomeDir()` = `~/.zaniicode`, nothing in it links to `.claude`). The leaks were through the project-level `.claude` folder name, which both programs use:
+  1. Instruction files: the walk from the working directory to the drive root read `<dir>/.claude/CLAUDE.md` and `<dir>/.claude/rules` for every ancestor, including the home folder, so Claude Code's global `~/.claude/CLAUDE.md` and rules were loaded into ccz sessions. Seen live on 2.14.16.
+  2. Project settings: started in the home folder, ccz read `~/.claude/settings.json` (Claude Code's user settings) as its project settings.
+  3. `skillLearning/observationStore.ts` built `$HOME/.claude/skill-learning` by hand.
+  4. 61 lines of user-facing text and model prompts in 35 files named `~/.claude/...` or `~/.claude.json` as ccz's location. Several are instructions the model acts on (update-config, keybindings, statusline setup, team tools), so ccz could have written into Claude Code's files.
+- **Fixed:** `isOtherProgramsClaudeHome()` in `src/utils/envUtils.ts`, applied in `processMemoryFile`, `processMdRules` and `getSettingsFilePathForSource`; the skill-learning path uses the config folder; the text and prompts say `~/.zaniicode` / `~/.zaniicode.json`. If `CLAUDE_CONFIG_DIR` is set to `~/.claude` on purpose, that folder is treated as ccz's own.
+- **Left alone on purpose:** `settingsSync/types.ts` (keys of a remote sync API), `permissions/filesystem.ts` (protects both `.claude.json` and `.zaniicode.json`), code comments.
+- **Live check:** asked which instruction files were loaded. Installed 2.14.16: `~/.claude/CLAUDE.md` plus the project file. New build: the project file only.
+- **Consequence:** ccz no longer gets the owner's Claude Code global rules. ccz's own global instruction file is `~/.zaniicode/CLAUDE.md`, which does not exist yet.
+- **Not changed, needs a decision:** inside a project both programs still share the same `.claude/` folder and `CLAUDE.md` (settings, rules, skills, agents). Separating that means a new project folder name for ccz.
+- Tests: precheck 6187 pass, 0 fail. `test:chatgpt` 283 pass, 0 fail (3 new for the guard).

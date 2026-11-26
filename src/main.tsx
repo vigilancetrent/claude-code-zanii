@@ -5070,7 +5070,7 @@ async function run(): Promise<CommanderCommand> {
     .alias('rm')
     .description('Uninstall an installed plugin')
     .option('-s, --scope <scope>', 'Uninstall from scope: user, project, or local', 'user')
-    .option('--keep-data', "Preserve the plugin's persistent data directory (~/.claude/plugins/data/{id}/)")
+    .option('--keep-data', "Preserve the plugin's persistent data directory (~/.zaniicode/plugins/data/{id}/)")
     .option('--json', 'Print one JSON result object instead of human-readable output')
     .addOption(coworkOption())
     .action(

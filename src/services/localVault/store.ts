@@ -62,8 +62,8 @@ export class LocalVaultDecryptionError extends Error {
   constructor(reason: string) {
     super(
       `LocalVault decryption failed: ${reason}. ` +
-        'Restore from your backup of ~/.claude/.local-vault-passphrase, ' +
-        'or delete ~/.claude/local-vault.enc.json to reset (DESTROYS ALL SECRETS).',
+        'Restore from your backup of ~/.zaniicode/.local-vault-passphrase, ' +
+        'or delete ~/.zaniicode/local-vault.enc.json to reset (DESTROYS ALL SECRETS).',
     )
     this.name = 'LocalVaultDecryptionError'
   }

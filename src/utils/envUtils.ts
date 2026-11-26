@@ -1,6 +1,6 @@
 import memoize from 'lodash-es/memoize.js'
 import { homedir } from 'os'
-import { join } from 'path'
+import { join, resolve } from 'path'
 
 // Memoized: 150+ callers, many on hot paths. Keyed off CLAUDE_CONFIG_DIR so
 // tests that change the env var get a fresh value without explicit cache.clear.
@@ -12,6 +12,33 @@ export const getClaudeConfigHomeDir = memoize(
   },
   () => process.env.CLAUDE_CONFIG_DIR,
 )
+
+/**
+ * `~/.claude` is the config folder of Claude Code, a different program. This
+ * CLI keeps its own data in getClaudeConfigHomeDir() (`~/.zaniicode`), but it
+ * uses a `.claude` folder inside a project for project settings, rules and
+ * instructions, and it looks for those in every directory from the working
+ * directory up to the drive root. The home folder is on that path, and is the
+ * project root when the CLI is started there. Without this check, Claude
+ * Code's own settings, CLAUDE.md and rules were picked up as if they were
+ * this CLI's project files.
+ *
+ * True for `~/.claude` and anything inside it. If the user points
+ * CLAUDE_CONFIG_DIR at `~/.claude` on purpose, that folder is this CLI's own
+ * and is read as usual.
+ */
+export function isOtherProgramsClaudeHome(path: string): boolean {
+  const comparable = (value: string) => {
+    const slashed = resolve(value)
+      .normalize('NFC')
+      .replace(/[/\\]+/g, '/')
+    return process.platform === 'win32' ? slashed.toLowerCase() : slashed
+  }
+  const claudeHome = comparable(join(homedir(), '.claude'))
+  if (claudeHome === comparable(getClaudeConfigHomeDir())) return false
+  const target = comparable(path)
+  return target === claudeHome || target.startsWith(`${claudeHome}/`)
+}
 
 export function getTeamsDir(): string {
   return join(getClaudeConfigHomeDir(), 'teams')
