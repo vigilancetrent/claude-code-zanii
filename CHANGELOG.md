@@ -2,6 +2,11 @@
 
 Release notes for Claude Code Zanii (`ccz`). `/release-notes` reads this file.
 
+## 2.14.14 - 2026-11-26
+
+- The Zanii Calls worker can start by itself. Set `"workAutoStart": "<path to worker.json>"` in your user settings, and opening `ccz` starts `ccz work` in the background if it is not already running. It keeps running after the terminal closes.
+- New commands `ccz work-status` and `ccz work-stop`.
+
 ## 2.14.13 - 2026-11-26
 
 - `/agents` opens the local agent manager on every sign-in. On a Claude sign-in it used to open the cloud scheduled-agents command.

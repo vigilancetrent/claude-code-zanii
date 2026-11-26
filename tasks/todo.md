@@ -279,7 +279,7 @@ Source: a read-only audit of every command in the `/` menu (about 131: 104 work,
 - **Not checked in the real UI:** none of the changed commands was run interactively. To do by hand on a Claude sign-in: `/agents`, `/daemon start` then `/daemon status`, `/tui on` then restart, `/release-notes`, and confirm `/feedback` is gone.
 - **Still open from the audit:** web fetch also uses the community Tavily host (no notice added); `/usage` no longer reaches the old activity stats; `/mobile` and `/stickers` point at Anthropic's app and shop; `/perf-issue` cost table has Claude models only; whether Anthropic's cloud accepts this fork for ultrareview, ultraplan, teleport, autofix-pr and triggers is untested.
 
-## 2026-11-26: worker auto start (committed locally, NOT pushed, NOT released)
+## 2026-11-26: 2.14.14: worker auto start
 
 - User settings `workAutoStart: "<path to worker.json>"`: opening an interactive `ccz` starts `ccz work <config>` detached, if no worker is running. Read from USER settings only (the worker config decides the command and permissions, so project settings must not be able to redirect it). Hook: `renderAndRun` in `src/interactiveHelpers.tsx`; logic in `src/utils/workAutoStart.ts`. `work.ts` is untouched.
 - One worker per PC: pid file `work.pid` in the config folder, claimed with an exclusive create; output goes to `work.log` there.
