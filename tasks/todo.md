@@ -301,3 +301,11 @@ Source: a read-only audit of every command in the `/` menu (about 131: 104 work,
 - **Open:** after a refused shell command that wrote a file, the agent wrote the same file with the file editor (allowed in this mode).
 - **Two auto-start paths:** `workAutoStart` (2.14.14, starts when ccz opens, pid-file guard) and `--install` (Startup file, restarts every minute). Together they run two workers on one key. Decide which to keep.
 - Tests: precheck 6184 pass, 0 fail. `test:chatgpt` 272 pass, 0 fail.
+
+## 2026-11-26: after 2.14.15 (committed locally, NOT pushed, NOT released)
+
+- **ExecuteExtraTool permissions:** `checkPermissions` now decides as the target tool: deny rule, ask rule, the target's own check, then allow rule. Before, it always returned `passthrough`, so allow rules for a deferred tool never matched and every deferred call asked. The request still carries the tool name `ExecuteExtraTool` with the target and params in its input; the name itself is not rewritten.
+- **Live check** (built CLI, stand-in server, config with only `"extra_args": ["--allowedTools", "mcp__zanii__ask_owner"]`, no `ENABLE_SEARCH_EXTRA_TOOLS`): the ask arrives as `kind: question` first, the answer reaches the agent, the file is written. A shell command outside the allowed tools still arrives as `kind: approval` and a refusal is respected.
+- **One auto-start path:** `ccz work` no longer offers `--install` / `--uninstall` (removed from `src/main.tsx` only; `work.ts` keeps the code and stays identical to the connector source). `workAutoStart` is the supported way. Tell the connector author: its README still documents `--install` for ccz.
+- Behaviour change to note: a deferred tool whose own permission check returns `allow` now runs through ExecuteExtraTool without a prompt, the same as when it is called directly.
+- Tests: precheck 6184 pass, 0 fail. `test:chatgpt` 280 pass, 0 fail (8 new for the wrapper's permissions).

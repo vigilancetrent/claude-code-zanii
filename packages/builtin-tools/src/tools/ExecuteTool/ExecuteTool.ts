@@ -217,11 +217,62 @@ export const ExecuteTool = buildTool({
       },
     }
   },
-  async checkPermissions() {
-    return {
-      behavior: 'passthrough',
-      message: 'ExecuteExtraTool delegates permission to the target tool.',
+  /**
+   * Decide as the tool that is about to run, not as this wrapper. Without
+   * this, a rule such as `--allowedTools mcp__server__tool` never matched a
+   * deferred tool, because the tool name being checked was ExecuteExtraTool,
+   * and every deferred call asked for permission.
+   */
+  async checkPermissions(input, context) {
+    const ask = (name: string) => ({
+      behavior: 'passthrough' as const,
+      message: `ExecuteExtraTool runs ${name}, which needs permission.`,
+    })
+    const target = findToolByName(context.options.tools ?? [], input.tool_name)
+    // No such tool: call() answers with "not found" and nothing runs.
+    if (!target) return ask(input.tool_name)
+
+    // Loaded on use: the permission rules pull in most of the app, and this
+    // tool is imported early by the tool registry.
+    const { getAskRuleForTool, getDenyRuleForTool, toolAlwaysAllowedRule } =
+      await import('src/utils/permissions/permissions.js')
+    const permissionContext = context.getAppState().toolPermissionContext
+    const denyRule = getDenyRuleForTool(permissionContext, target)
+    if (denyRule) {
+      return {
+        behavior: 'deny' as const,
+        message: `Permission to use ${target.name} has been denied.`,
+        decisionReason: { type: 'rule' as const, rule: denyRule },
+      }
     }
+    // An explicit "always ask" rule for the target wins over an allow rule.
+    if (getAskRuleForTool(permissionContext, target)) return ask(target.name)
+
+    // The target's own check, for tools that allow or deny by their input.
+    // Params are not schema-checked yet (call() does that), so a throw here
+    // only means "ask".
+    let own: Awaited<ReturnType<Tool['checkPermissions']>> | undefined
+    try {
+      own = await target.checkPermissions(
+        input.params as Record<string, unknown>,
+        context,
+      )
+    } catch {
+      own = undefined
+    }
+    if (own?.behavior === 'deny') return own
+
+    const allowRule = toolAlwaysAllowedRule(permissionContext, target)
+    if (allowRule || own?.behavior === 'allow') {
+      return {
+        behavior: 'allow' as const,
+        updatedInput: input,
+        ...(allowRule && {
+          decisionReason: { type: 'rule' as const, rule: allowRule },
+        }),
+      }
+    }
+    return ask(target.name)
   },
   renderToolUseMessage(input) {
     return `${input.tool_name}`
