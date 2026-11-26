@@ -4618,6 +4618,31 @@ async function run(): Promise<CommanderCommand> {
       process.exit(typeof process.exitCode === 'number' ? process.exitCode : 0);
     });
 
+  program
+    .command('work-status')
+    .description('Show whether the background Zanii Calls worker is running')
+    .action(async () => {
+      const { runningWorkerPid, workAutoStartConfig, workLogPath } = await import('./utils/workAutoStart.js');
+      const pid = runningWorkerPid();
+      const config = workAutoStartConfig();
+      console.log(pid ? `Worker running (pid ${pid}).` : 'Worker not running.');
+      console.log(
+        config ? `Auto start: on, config ${config}` : 'Auto start: off (set "workAutoStart" in user settings).',
+      );
+      console.log(`Log: ${workLogPath()}`);
+      process.exit(0);
+    });
+
+  program
+    .command('work-stop')
+    .description('Stop the background Zanii Calls worker')
+    .action(async () => {
+      const { stopWork } = await import('./utils/workAutoStart.js');
+      const result = stopWork();
+      console.log(result.stopped ? `Worker stopped (pid ${result.pid}).` : 'Worker was not running.');
+      process.exit(0);
+    });
+
   // claude mcp
 
   const mcp = program

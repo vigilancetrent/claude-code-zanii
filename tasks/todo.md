@@ -278,3 +278,14 @@ Source: a read-only audit of every command in the `/` menu (about 131: 104 work,
 - Tests: precheck 6177 pass, 0 fail. `test:chatgpt` 266 pass, 0 fail. Built CLI: agent task and web search OK.
 - **Not checked in the real UI:** none of the changed commands was run interactively. To do by hand on a Claude sign-in: `/agents`, `/daemon start` then `/daemon status`, `/tui on` then restart, `/release-notes`, and confirm `/feedback` is gone.
 - **Still open from the audit:** web fetch also uses the community Tavily host (no notice added); `/usage` no longer reaches the old activity stats; `/mobile` and `/stickers` point at Anthropic's app and shop; `/perf-issue` cost table has Claude models only; whether Anthropic's cloud accepts this fork for ultrareview, ultraplan, teleport, autofix-pr and triggers is untested.
+
+## 2026-11-26: worker auto start (committed locally, NOT pushed, NOT released)
+
+- User settings `workAutoStart: "<path to worker.json>"`: opening an interactive `ccz` starts `ccz work <config>` detached, if no worker is running. Read from USER settings only (the worker config decides the command and permissions, so project settings must not be able to redirect it). Hook: `renderAndRun` in `src/interactiveHelpers.tsx`; logic in `src/utils/workAutoStart.ts`. `work.ts` is untouched.
+- One worker per PC: pid file `work.pid` in the config folder, claimed with an exclusive create; output goes to `work.log` there.
+- New plain commands: `ccz work-status`, `ccz work-stop`.
+- The key must be available to a background process: `key_file` in the worker config, or `ZANII_CALLS_AGENT_KEY` set for the user account (not only in one terminal).
+- Verified: 6 isolated tests; real run with the built CLI as the worker against a stand-in server (started once, second start reported running, survived the starter exiting, logged, `work-stop` ended it and removed the pid file).
+- Not verified: the three-line call site in the interactive UI (cannot be driven from a script).
+- Limits: on Linux/macOS `work-stop` signals the worker's process group; an agent the worker started runs in its own group and may finish its current order. A pid reused by another program blocks a new worker until `work-stop`.
+- Tests: precheck 6177 pass, 0 fail. `test:chatgpt` 272 pass, 0 fail.

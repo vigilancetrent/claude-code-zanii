@@ -19,6 +19,8 @@ import { isSynchronizedOutputSupported } from '@anthropic/ink';
 import type { RenderOptions, Root, TextProps } from '@anthropic/ink';
 import { KeybindingSetup } from './keybindings/KeybindingProviderSetup.js';
 import { startDeferredPrefetches } from './main.js';
+import { logForDebugging } from './utils/debug.js';
+import { autoStartWork } from './utils/workAutoStart.js';
 import { initializeGrowthBook, resetGrowthBook } from './services/analytics/growthbook.js';
 import { isQualifiedForGrove } from './services/api/grove.js';
 import { handleMcpjsonServerApprovals } from './services/mcpServerApproval.js';
@@ -118,12 +120,28 @@ export function showSetupDialog<T = void>(
 }
 
 /**
+ * Interactive sessions only: start the Zanii Calls worker if the user asked
+ * for that in settings. Never fails the session.
+ */
+function startWorkInBackground(): void {
+  try {
+    const result = autoStartWork();
+    if (result.state !== 'off') {
+      logForDebugging(`[work] auto start: ${JSON.stringify(result)}`);
+    }
+  } catch (error) {
+    logForDebugging(`[work] auto start failed: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+/**
  * Render the main UI into the root and wait for it to exit.
  * Handles the common epilogue: start deferred prefetches, wait for exit, graceful shutdown.
  */
 export async function renderAndRun(root: Root, element: React.ReactNode): Promise<void> {
   root.render(element);
   startDeferredPrefetches();
+  startWorkInBackground();
   await root.waitUntilExit();
   await gracefulShutdown(0);
 }

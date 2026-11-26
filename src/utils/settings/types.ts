@@ -493,6 +493,12 @@ export const SettingsSchema = lazySchema(() =>
         .describe(
           'Model to use while in plan mode (architect/editor split); the session model handles execution. Any provider.',
         ),
+      workAutoStart: z
+        .string()
+        .optional()
+        .describe(
+          'Path to a Zanii Calls worker config. When set in user settings, opening an interactive session starts `ccz work <config>` in the background if it is not already running. Ignored in project settings.',
+        ),
       repoMap: z
         .boolean()
         .optional()
