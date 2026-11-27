@@ -74,7 +74,7 @@ class FakeServer implements ServerLike {
     if (path.startsWith('/v1/agent/work?')) return [200, { items: this.queued }]
     if (path.endsWith('/claim')) return [200, ORDER]
     if (method === 'POST' && path.endsWith('/asks'))
-      return [201, { id: '5', status: 'waiting' }]
+      return [201, this.made ?? { id: '5', status: 'waiting' }]
     if (method === 'GET' && path.endsWith('/asks/5')) {
       return [
         200,
@@ -86,6 +86,8 @@ class FakeServer implements ServerLike {
     return [200, {}]
   }
 
+  /** What the server returns when the ask is made (a standing rule can answer it at once). */
+  made: Json | null = null
   /** What the owner answers, one entry per look. The last one stays. */
   answers: Json[] = []
 
@@ -541,6 +543,39 @@ describe('the agent asks the owner', () => {
         ),
       ).toHaveLength(3)
       expect(tools.waitedMs()).toBeGreaterThan(0)
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test('a standing rule that answers at once is used straight away, with no waiting', async () => {
+    const server = new FakeServer()
+    const tools = await startAskTools(cfg, server, '7', { stopped: false })
+    try {
+      const input = { command: 'pnpm test' }
+      server.made = {
+        id: '5',
+        status: 'answered',
+        approved: true,
+        answer: 'Approved by standing rule 3',
+      }
+      expect(
+        JSON.parse(
+          await callTool(tools, 'approve', {
+            tool_name: 'Bash',
+            input,
+            tool_use_id: 't9',
+          }),
+        ),
+      ).toEqual({
+        behavior: 'allow',
+        updatedInput: input,
+      })
+      expect(
+        server.calls.filter(
+          ([method, path]) => method === 'GET' && path.endsWith('/asks/5'),
+        ),
+      ).toHaveLength(0)
     } finally {
       await tools.close()
     }

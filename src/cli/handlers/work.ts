@@ -405,6 +405,8 @@ export async function startAskTools(
       return {
         none: `the question could not be sent (${made?.error?.message ?? status})`,
       }
+    // The owner's standing approval rules can answer at once: no need to wait a poll for it.
+    if (made.status === 'answered') return made
     const started = Date.now()
     try {
       while (!stop.stopped && Date.now() - started < cfg.askMinutes * 60_000) {
