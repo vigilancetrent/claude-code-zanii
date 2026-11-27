@@ -2,6 +2,10 @@
 
 Release notes for Claude Code Zanii (`ccz`). `/release-notes` reads this file.
 
+## 2.14.18 - 2026-11-28
+
+- `ccz work`: an approval the server answers at once, from the owner's standing rules, is used straight away. Before, the worker waited a few seconds before noticing.
+
 ## 2.14.17 - 2026-11-26
 
 - `ccz` keeps out of Claude Code's `~/.claude` folder. It no longer loads `~/.claude/CLAUDE.md` and rules, and no longer reads `~/.claude/settings.json` as project settings when started in your home folder. Its own folder is `~/.zaniicode`; put global instructions in `~/.zaniicode/CLAUDE.md`.

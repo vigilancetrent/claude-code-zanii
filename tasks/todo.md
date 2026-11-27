@@ -348,7 +348,7 @@ Owner's rule: ccz and Claude Code are two programs; ccz data lives in `~/.zaniic
 - Not exercised live: `ask_partner`, refused file names, the file size limit (connector tests only).
 - Tests: precheck 6190 pass, 0 fail. `test:chatgpt` 283 pass, 0 fail.
 
-## 2026-11-28: after 2.14.17 (committed locally, NOT pushed, NOT released)
+## 2026-11-28: 2.14.18: instant ask answers
 
 - `work.ts` and its test updated from the connector source (26 tests): an ask the server answers at once (`status: answered` in the reply to the POST, from the owner's standing approval rules) is used straight away. Before, the worker waited one poll (3 seconds) before noticing. Nothing was broken, only slower.
 - Not checked live: no stand-in run for this two-line change; the connector's new test covers it.
