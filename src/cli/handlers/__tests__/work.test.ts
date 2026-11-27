@@ -13,7 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import {
   type Answer,
   type Config,
@@ -29,6 +29,7 @@ import {
   buildPrompt,
   fetchPartnerFiles,
   git,
+  projectFolder,
   loadConfig,
   progressLine,
   runOrder,
@@ -287,6 +288,29 @@ describe('the work loop', () => {
       server.calls.some(([, path]) => path === '/v1/agent/heartbeat'),
     ).toBe(true)
     expect(server.sent('/status').at(-1)!.status).toBe('needs_review')
+  })
+
+  test('a project new to this PC gets its own repository when new_projects_in is set', async () => {
+    const server = new FakeServer([
+      { id: '8', project: 'Garden App', title: 'Set up' },
+    ])
+    await work(cfg, server, { once: true, log: () => {} })
+    expect(server.calls.some(([, path]) => path.endsWith('/claim'))).toBe(false) // off by default
+    cfg.newProjectsIn = join(dirname(repo), 'new')
+    expect(projectFolder(cfg, '../../evil')).toBe(
+      join(cfg.newProjectsIn, 'evil'),
+    )
+    mkdirSync(join(cfg.newProjectsIn, 'taken'))
+    expect(projectFolder(cfg, 'Taken')).toBeNull() // a folder that is not a repository is left alone
+    const again = new FakeServer([
+      { id: '8', project: 'Garden App', title: 'Set up' },
+    ])
+    await work(cfg, again, { once: true, log: () => {} })
+    expect(cfg.projects['garden app']).toBe(
+      join(cfg.newProjectsIn, 'garden-app'),
+    )
+    expect(existsSync(join(cfg.newProjectsIn, 'garden-app', '.git'))).toBe(true)
+    expect(again.sent('/status').at(-1)!.status).toBe('needs_review')
   })
 
   test('stops an order the server no longer lists as ours', async () => {

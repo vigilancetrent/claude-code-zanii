@@ -109,6 +109,8 @@ export interface Config {
   askMinutes: number
   /** How often the worker looks for the answer. */
   askPollMs: number
+  /** Where a project new to this PC gets its own git folder. Unset: such orders are skipped. */
+  newProjectsIn?: string
 }
 export interface HandIn {
   branch?: string
@@ -198,7 +200,10 @@ export function loadConfig(
   const missing = Object.values(projects).filter(
     folder => !existsSync(join(folder, '.git')),
   )
-  if (!Object.keys(projects).length || missing.length) {
+  const newProjectsIn = raw.new_projects_in
+    ? resolve(String(raw.new_projects_in))
+    : undefined
+  if ((!Object.keys(projects).length && !newProjectsIn) || missing.length) {
     throw new Error(
       `every project needs a folder that is a git repository; not one: ${missing.join(', ') || 'no projects listed'}`,
     )
@@ -227,7 +232,44 @@ export function loadConfig(
     asks: raw.asks !== false,
     askMinutes: Number(raw.ask_minutes ?? 30),
     askPollMs: 3000,
+    ...(newProjectsIn ? { newProjectsIn } : {}),
   }
+}
+
+/**
+ * The folder for an order's project. A project new to this PC gets a fresh git repository in
+ * `newProjectsIn`, named from the project in safe letters, so a name can never point outside it.
+ * A folder that is already there but is not a repository is left alone. Null: skip the order.
+ */
+export function projectFolder(cfg: Config, project: string): string | null {
+  const name = project.toLowerCase()
+  if (cfg.projects[name]) return cfg.projects[name]
+  if (!cfg.newProjectsIn) return null
+  const safe = name
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^[-.]+|[-.]+$/g, '')
+    .slice(0, 60)
+  if (!safe) return null
+  const folder = join(cfg.newProjectsIn, safe)
+  if (!existsSync(join(folder, '.git'))) {
+    if (existsSync(folder)) return null
+    mkdirSync(folder, { recursive: true })
+    git(folder, 'init', '-q')
+    git(
+      folder,
+      '-c',
+      `user.name=${cfg.commitAs[0]}`,
+      '-c',
+      `user.email=${cfg.commitAs[1]}`,
+      'commit',
+      '-q',
+      '--allow-empty',
+      '-m',
+      `Start ${project}`,
+    )
+  }
+  cfg.projects[name] = folder
+  return folder
 }
 
 /** With no command in the config, the agent is the same program that is running `work`. */
@@ -977,7 +1019,16 @@ export async function work(
       for (const item of status === 200 && Array.isArray(queued.items)
         ? queued.items
         : []) {
-        if (!cfg.projects[String(item.project).toLowerCase()]) continue // no folder for that project on this PC
+        let folder: string | null = null
+        try {
+          folder = projectFolder(cfg, String(item.project))
+        } catch (e) {
+          log(
+            `could not make a folder for ${item.project}: ${(e as Error).message}`,
+          )
+        }
+        if (!folder) continue // no folder for that project on this PC
+        said.projects = Object.keys(cfg.projects).sort().slice(0, 50)
         const [code, order] = await server.call(
           'POST',
           `/v1/agent/work/${item.id}/claim`,

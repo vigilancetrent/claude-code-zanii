@@ -2,6 +2,10 @@
 
 Release notes for Claude Code Zanii (`ccz`). `/release-notes` reads this file.
 
+## 2.14.19 - 2026-11-28
+
+- `ccz work`: new optional setting `new_projects_in` in the worker config. An order for a project this PC has no folder for gets a new git repository in that folder, named from the project in safe letters, and the order is taken. Without the setting such orders are skipped, as before. A folder already there that is not a repository is never touched.
+
 ## 2.14.18 - 2026-11-28
 
 - `ccz work`: an approval the server answers at once, from the owner's standing rules, is used straight away. Before, the worker waited a few seconds before noticing.
