@@ -357,6 +357,17 @@ ${RULES}`,
       }),
     ).toBe('Bash: pnpm test')
     expect(progressLine({ type: 'user' })).toBeNull()
+    const taught = buildPrompt({
+      id: '1',
+      project: 'P',
+      title: 'T',
+      instructions: 'Do X.',
+      lessons: ['Add refund tests.', ' '],
+    })
+    expect(taught).toContain(
+      "Lessons from the owner's reviews of earlier work on this project:\n- Add refund tests.",
+    )
+    expect(taught).not.toContain('- \n')
   })
 
   test('the config refuses a plain http server, a missing key and a folder that is not a repository', () => {
@@ -646,6 +657,32 @@ describe('the agent asks the owner', () => {
         behavior: 'deny',
         message: 'The owner said no: Do not delete the build folder.',
       })
+    } finally {
+      await tools.close()
+    }
+  })
+
+  test('when the owner is away the agent hears it at once, and it is still a no', async () => {
+    const server = new FakeServer()
+    const tools = await startAskTools(cfg, server, '7', { stopped: false })
+    try {
+      server.answers = [
+        { status: 'waiting', owner_away: 'The owner is away right now.' },
+      ]
+      const away = JSON.parse(
+        await callTool(tools, 'approve', {
+          tool_name: 'Bash',
+          input: { command: 'pnpm build' },
+        }),
+      )
+      expect(away.behavior).toBe('deny')
+      expect(away.message).toContain('The owner is away right now.')
+      server.answers = [
+        { status: 'waiting', owner_away: 'The owner is away right now.' },
+      ]
+      expect(
+        await callTool(tools, 'ask_owner', { question: 'Which branch?' }),
+      ).toContain('The owner is away right now.')
     } finally {
       await tools.close()
     }

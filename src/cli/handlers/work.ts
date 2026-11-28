@@ -91,6 +91,8 @@ export interface Order {
   title: string
   instructions?: string
   notes?: { from: string; body: string }[]
+  /** What the owner said when sending earlier work on this project back. */
+  lessons?: string[]
   background?: Background
 }
 export interface Config {
@@ -350,6 +352,14 @@ export function buildPrompt(
     parts.push(
       `Later notes from the owner:\n${later.map(n => `- ${n}`).join('\n')}`,
     )
+  const lessons = (order.lessons ?? []).filter(
+    l => typeof l === 'string' && l.trim(),
+  )
+  if (lessons.length) {
+    parts.push(
+      `Lessons from the owner's reviews of earlier work on this project:\n${lessons.map(l => `- ${l}`).join('\n')}`,
+    )
+  }
   const b = order.background
   if (b) {
     // Fenced and labelled, after everything the owner said, so it reads as material and not as orders.
@@ -458,6 +468,9 @@ export async function startAskTools(
           `/v1/agent/work/${oid}/asks/${made.id}`,
         )
         if (code === 200 && ask.status === 'answered') return ask
+        // Nobody who can answer has been around: go on with what does not need it. Never a yes.
+        if (code === 200 && typeof ask.owner_away === 'string')
+          return { none: ask.owner_away }
         if (code === 200 && ask.status === 'withdrawn')
           return { none: 'this work order was stopped' }
         if (code === 404 || code === 409)

@@ -2,6 +2,11 @@
 
 Release notes for Claude Code Zanii (`ccz`). `/release-notes` reads this file.
 
+## 2.14.20 - 2026-11-28
+
+- `ccz work`: an order now carries what the owner said when sending earlier work on the same project back, and the agent reads those lessons before it starts.
+- `ccz work`: when nobody who can answer is around, the agent is told at once instead of waiting out the full ask time. An approval is still a no; the agent goes on only with what does not need the answer.
+
 ## 2.14.19 - 2026-11-28
 
 - `ccz work`: new optional setting `new_projects_in` in the worker config. An order for a project this PC has no folder for gets a new git repository in that folder, named from the project in safe letters, and the order is taken. Without the setting such orders are skipped, as before. A folder already there that is not a repository is never touched.

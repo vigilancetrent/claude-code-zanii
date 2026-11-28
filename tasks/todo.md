@@ -359,3 +359,9 @@ Owner's rule: ccz and Claude Code are two programs; ccz data lives in `~/.zaniic
 - `work.ts` and its test updated from the connector source (27 tests): optional `new_projects_in` in the worker config makes a git repository for a project new to this PC and takes the order. Off unless set.
 - Not checked live: no real call or stand-in run; the connector's test covers it. This PC's `worker.json` does not have the line yet (owner to pick the folder).
 - Tests: precheck 6192 pass, 0 fail. `test:chatgpt` 283 pass, 0 fail.
+
+## 2026-11-28: 2.14.20: lessons and owner away
+
+- `work.ts` and its test updated from the connector source (28 tests): lessons from earlier reviews go into the order's prompt; an ask answered with `owner_away` ends at once (approval stays a no).
+- Not checked live: connector tests only.
+- Tests: precheck 6193 pass, 0 fail. `test:chatgpt` 283 pass, 0 fail.
